@@ -9,6 +9,7 @@ import { SystemsTab } from '@/components/tabs/SystemsTab';
 import { FinanceTab } from '@/components/tabs/FinanceTab';
 import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
+import { SaveIndicator } from '@/components/SaveIndicator';
 import { TabId, ModalConfig, ChatMessage, JournalEntry } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
@@ -29,6 +30,7 @@ export default function LifeCommandCenter() {
   // Supabase Data
   const {
     loading: dataLoading,
+    saveStatus,
     tasks, setTasks,
     systems, setSystems,
     transactions, setTransactions,
@@ -718,6 +720,8 @@ export default function LifeCommandCenter() {
             )
           )}
         </Modal>
+        
+        <SaveIndicator status={saveStatus} />
       </div>
     </TooltipProvider>
   );
