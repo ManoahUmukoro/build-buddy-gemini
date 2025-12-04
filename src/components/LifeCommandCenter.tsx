@@ -507,7 +507,7 @@ export default function LifeCommandCenter() {
       <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
         
-        <main className="flex-1 overflow-y-auto w-full">
+        <main className="flex-1 overflow-y-auto w-full pb-24 md:pb-0">
           <MobileHeader />
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
