@@ -9,17 +9,12 @@ import { SystemsTab } from '@/components/tabs/SystemsTab';
 import { FinanceTab } from '@/components/tabs/FinanceTab';
 import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
-import { 
-  Tasks, System, Transaction, JournalEntry, Budget, 
-  Subscription, TabId, ModalConfig, ChatMessage 
-} from '@/lib/types';
-import { 
-  loadTasks, loadSystems, loadTransactions, loadJournalEntries, 
-  loadBudgets, loadCategories, loadSubscriptions, saveToStorage, exportAllData 
-} from '@/lib/storage';
-import { DEFAULT_CATEGORIES } from '@/lib/constants';
+import { TabId, ModalConfig, ChatMessage, JournalEntry } from '@/lib/types';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useAI } from '@/hooks/useAI';
 import { getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function LifeCommandCenter() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -30,20 +25,26 @@ export default function LifeCommandCenter() {
   const [inputWhy, setInputWhy] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   
-  // Task State
-  const [tasks, setTasks] = useState<Tasks>(loadTasks);
+  // Supabase Data
+  const {
+    loading: dataLoading,
+    tasks, setTasks,
+    systems, setSystems,
+    transactions, setTransactions,
+    journalEntries, setJournalEntries,
+    budgets, setBudgets,
+    categories, setCategories,
+    subscriptions, setSubscriptions,
+    geminiApiKey, setGeminiApiKey
+  } = useSupabaseData();
+  
+  // AI Hook
+  const ai = useAI();
+  
+  // Local UI State
   const [sortingDay, setSortingDay] = useState<string | null>(null);
   const [breakingDownTask, setBreakingDownTask] = useState<number | null>(null);
-  
-  // Systems State
-  const [systems, setSystems] = useState<System[]>(loadSystems);
-  
-  // Finance State
   const [currency, setCurrency] = useState('₦');
-  const [categories, setCategories] = useState<string[]>(loadCategories);
-  const [transactions, setTransactions] = useState<Transaction[]>(loadTransactions);
-  const [budgets, setBudgets] = useState<Budget>(loadBudgets);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(loadSubscriptions);
   const [newTransaction, setNewTransaction] = useState({
     type: 'expense' as 'income' | 'expense',
     amount: '',
@@ -57,31 +58,15 @@ export default function LifeCommandCenter() {
   const [financeChatHistory, setFinanceChatHistory] = useState<ChatMessage[]>([]);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
-  
-  // Journal State
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(loadJournalEntries);
   const [todayEntry, setTodayEntry] = useState({ mood: 3, win: '', improve: '', thoughts: '' });
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [journalChatHistory, setJournalChatHistory] = useState<ChatMessage[]>([]);
-  
-  // Dashboard State
   const [dailyBriefing, setDailyBriefing] = useState("Ready to conquer the day?");
   const [lifeAudit, setLifeAudit] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
-  
-  // Pomodoro State
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroActive, setPomodoroActive] = useState(false);
-
-  // Persistence
-  useEffect(() => { saveToStorage('tasks', tasks); }, [tasks]);
-  useEffect(() => { saveToStorage('systems', systems); }, [systems]);
-  useEffect(() => { saveToStorage('finance', transactions); }, [transactions]);
-  useEffect(() => { saveToStorage('subscriptions', subscriptions); }, [subscriptions]);
-  useEffect(() => { saveToStorage('categories', categories); }, [categories]);
-  useEffect(() => { saveToStorage('budgets', budgets); }, [budgets]);
-  useEffect(() => { saveToStorage('journal', journalEntries); }, [journalEntries]);
 
   // Pomodoro Timer
   useEffect(() => {
@@ -90,7 +75,7 @@ export default function LifeCommandCenter() {
       interval = setInterval(() => setPomodoroTime(prev => prev - 1), 1000);
     } else if (pomodoroTime === 0) {
       setPomodoroActive(false);
-      alert("Focus Session Complete!");
+      toast.success("Focus Session Complete!");
       setPomodoroTime(25 * 60);
     }
     return () => { if (interval) clearInterval(interval); };
@@ -140,30 +125,35 @@ export default function LifeCommandCenter() {
     setInputWhy('');
   };
 
-  // AI Handlers (Placeholder - would connect to Lovable AI)
+  // AI Handlers
   const handleSmartSort = async (day: string) => {
     const currentTasks = tasks[day] || [];
-    if (currentTasks.length < 2) return alert("Add at least 2 tasks to sort!");
+    if (currentTasks.length < 2) return toast.error("Add at least 2 tasks to sort!");
     setSortingDay(day);
-    // Simulate AI sorting
-    setTimeout(() => {
+    
+    const sorted = await ai.smartSort(currentTasks);
+    if (sorted) {
+      setTasks(prev => ({ ...prev, [day]: sorted }));
+    } else {
+      // Fallback to random sort
       setTasks(prev => ({
         ...prev,
         [day]: [...(prev[day] || [])].sort(() => Math.random() - 0.5)
       }));
-      setSortingDay(null);
-    }, 1000);
+    }
+    setSortingDay(null);
   };
 
   const handleBreakdownTask = async (day: string, taskId: number, taskText: string) => {
     setBreakingDownTask(taskId);
-    // Simulate AI breakdown
-    setTimeout(() => {
-      const newSubtasks = [
-        { id: Date.now(), text: `↳ Step 1 for "${taskText}"`, done: false },
-        { id: Date.now() + 1, text: `↳ Step 2 for "${taskText}"`, done: false },
-        { id: Date.now() + 2, text: `↳ Step 3 for "${taskText}"`, done: false },
-      ];
+    
+    const subtasks = await ai.breakdownTask(taskText);
+    if (subtasks) {
+      const newSubtasks = subtasks.map((s: any, i: number) => ({
+        id: Date.now() + i,
+        text: `↳ ${s.text || s}`,
+        done: false
+      }));
       setTasks(prev => {
         const currentDayTasks = prev[day] || [];
         const taskIndex = currentDayTasks.findIndex(t => t.id === taskId);
@@ -171,78 +161,94 @@ export default function LifeCommandCenter() {
         const newTasks = [...currentDayTasks.slice(0, taskIndex + 1), ...newSubtasks, ...currentDayTasks.slice(taskIndex + 1)];
         return { ...prev, [day]: newTasks };
       });
-      setBreakingDownTask(null);
-    }, 1500);
+    }
+    setBreakingDownTask(null);
   };
 
-  const handleSmartDraft = (taskText: string) => {
+  const handleSmartDraft = async (taskText: string) => {
     setIsGenerating(true);
     openModal('smartDraft');
-    setTimeout(() => {
-      setDraftText(`Draft email regarding "${taskText}":\n\nDear [Recipient],\n\nI hope this message finds you well. I wanted to reach out regarding ${taskText}.\n\nPlease let me know if you have any questions.\n\nBest regards`);
-      setIsGenerating(false);
-    }, 1500);
+    
+    const draft = await ai.smartDraft(taskText);
+    setDraftText(draft || `Draft for "${taskText}":\n\nDear [Recipient],\n\nI hope this message finds you well.\n\nBest regards`);
+    setIsGenerating(false);
   };
 
-  const handleLifeAudit = () => {
+  const handleLifeAudit = async () => {
     setIsGenerating(true);
     openModal('lifeAudit');
-    setTimeout(() => {
-      setLifeAudit(`Based on your data:\n\n**Insight**: Your habit completion is at ${Math.round((completedHabits/totalHabits)*100)}% today. Your spending patterns show consistent behavior.\n\n**Recommendation**: Consider reviewing your fixed costs to optimize savings.`);
-      setIsGenerating(false);
-    }, 2000);
-  };
-
-  const handleDailyBriefing = () => {
+    
     const totalTasks = Object.values(tasks).reduce((acc, dayTasks) => acc + dayTasks.length, 0);
-    setDailyBriefing(`You have ${totalTasks} tasks across your week. Let's make today count!`);
+    const audit = await ai.lifeAudit({
+      completedHabits,
+      totalHabits,
+      balance,
+      totalTasks,
+      journalCount: journalEntries.length
+    });
+    setLifeAudit(audit || `Based on your data:\n\n**Insight**: Your habit completion is at ${Math.round((completedHabits/Math.max(1, totalHabits))*100)}% today.\n\n**Recommendation**: Keep building momentum!`);
+    setIsGenerating(false);
   };
 
-  const handleAnalyzeFinances = () => {
-    if (transactions.length === 0) return alert("Add some money records first!");
+  const handleDailyBriefing = async () => {
+    const todayTasks = tasks[`d${currentDayIndex}`]?.length || 0;
+    const briefing = await ai.dailyBriefing({
+      todayTasks,
+      habitsToComplete: totalHabits - completedHabits,
+      balance
+    });
+    setDailyBriefing(briefing || `You have ${todayTasks} tasks today. Let's make it count!`);
+  };
+
+  const handleAnalyzeFinances = async () => {
+    if (transactions.length === 0) return toast.error("Add some money records first!");
     setIsAnalyzingFinance(true);
-    setTimeout(() => {
-      setFinanceAnalysis(`• Your balance is ${balance >= 0 ? 'healthy' : 'in deficit'}\n• Top spending category identified\n• Consider setting budget limits`);
-      setIsAnalyzingFinance(false);
-    }, 1500);
+    
+    const analysis = await ai.analyzeFinances({ totalIncome, totalExpense, balance, expenseData });
+    setFinanceAnalysis(analysis || `• Your balance is ${balance >= 0 ? 'healthy' : 'in deficit'}\n• Review your spending patterns`);
+    setIsAnalyzingFinance(false);
   };
 
-  const handleFinanceChat = (text: string, imageBase64: string | null) => {
+  const handleFinanceChat = async (text: string, _imageBase64: string | null) => {
     setIsAnalyzingFinance(true);
     const userMsg: ChatMessage = { role: 'user', text };
     setFinanceChatHistory(prev => [...prev, userMsg]);
-    setTimeout(() => {
-      const response: ChatMessage = { role: 'model', text: `That's a great question about "${text}". Based on your financial data, I'd recommend focusing on your spending patterns and setting clear budget goals.` };
-      setFinanceChatHistory(prev => [...prev, response]);
-      setIsAnalyzingFinance(false);
-    }, 1500);
+    
+    const response = await ai.financeChat([...financeChatHistory, userMsg].map(m => ({ role: m.role === 'model' ? 'assistant' : m.role, content: m.text })));
+    if (response) {
+      setFinanceChatHistory(prev => [...prev, { role: 'model', text: response }]);
+    }
+    setIsAnalyzingFinance(false);
   };
 
-  const handleJournalChat = (text: string, imageBase64: string | null) => {
+  const handleJournalChat = async (text: string, _imageBase64: string | null) => {
     setIsSavingJournal(true);
     const userMsg: ChatMessage = { role: 'user', text };
     setJournalChatHistory(prev => [...prev, userMsg]);
-    setTimeout(() => {
-      const response: ChatMessage = { role: 'model', text: `Thanks for sharing that. "${text}" - I hear you. Remember, every day is a new opportunity to grow and improve. What matters most is that you're reflecting on your experiences.` };
-      setJournalChatHistory(prev => [...prev, response]);
-      setIsSavingJournal(false);
-    }, 1500);
+    
+    const response = await ai.journalChat([...journalChatHistory, userMsg].map(m => ({ role: m.role === 'model' ? 'assistant' : m.role, content: m.text })));
+    if (response) {
+      setJournalChatHistory(prev => [...prev, { role: 'model', text: response }]);
+    }
+    setIsSavingJournal(false);
   };
 
-  const handleAutoCategorize = () => {
-    if (!newTransaction.description) return alert("Enter a description first!");
+  const handleAutoCategorize = async () => {
+    if (!newTransaction.description) return toast.error("Enter a description first!");
     setIsCategorizing(true);
-    setTimeout(() => {
-      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-      setNewTransaction(prev => ({ ...prev, category: randomCategory }));
-      setIsCategorizing(false);
-    }, 1000);
+    
+    const category = await ai.autoCategorize(newTransaction.description, categories);
+    if (category) {
+      setNewTransaction(prev => ({ ...prev, category: category.trim() }));
+    }
+    setIsCategorizing(false);
   };
 
   const handleReceiptScan = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanningReceipt(true);
+    // For now, simulate - would need image processing
     setTimeout(() => {
       setNewTransaction(prev => ({
         ...prev,
@@ -251,13 +257,14 @@ export default function LifeCommandCenter() {
         type: 'expense'
       }));
       setIsScanningReceipt(false);
-      alert("Receipt Scanned!");
+      toast.success("Receipt Scanned!");
     }, 2000);
   };
 
-  const handleSaveJournal = (e: React.FormEvent) => {
+  const handleSaveJournal = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingJournal(true);
+    
     const entryData: JournalEntry = {
       ...todayEntry,
       id: editingEntryId || Date.now(),
@@ -266,112 +273,116 @@ export default function LifeCommandCenter() {
     };
     
     if (editingEntryId) {
-      setJournalEntries(prev => prev.map(e => e.id === editingEntryId ? entryData : e));
+      await setJournalEntries(prev => prev.map(e => e.id === editingEntryId ? entryData : e));
       setEditingEntryId(null);
     } else {
-      setJournalEntries(prev => [entryData, ...prev]);
+      await setJournalEntries(prev => [entryData, ...prev]);
     }
     setTodayEntry({ mood: 3, win: '', improve: '', thoughts: '' });
     setIsSavingJournal(false);
+    toast.success("Journal entry saved!");
   };
 
-  const handleWeeklyReport = () => {
-    if (journalEntries.length === 0) return alert("No entries!");
+  const handleWeeklyReport = async () => {
+    if (journalEntries.length === 0) return toast.error("No entries!");
     setIsSavingJournal(true);
-    setTimeout(() => {
-      const response: ChatMessage = { role: 'model', text: `Weekly Summary: You've logged ${journalEntries.length} entries. Your average mood has been positive. Keep up the great work on self-reflection!` };
-      setJournalChatHistory(prev => [...prev, response]);
-      setIsSavingJournal(false);
-    }, 1500);
+    
+    const report = await ai.weeklyReport(journalEntries.slice(0, 7));
+    if (report) {
+      setJournalChatHistory(prev => [...prev, { role: 'model', text: report }]);
+    }
+    setIsSavingJournal(false);
   };
 
   // Modal Submit Handler
-  const handleModalSubmit = (e: React.FormEvent) => {
+  const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isDeleteAction = modalConfig.type?.startsWith('delete');
     if (!inputValue.trim() && !isDeleteAction) return;
 
     switch (modalConfig.type) {
       case 'addTask':
-        setTasks(prev => ({
+        await setTasks(prev => ({
           ...prev,
           [modalConfig.data]: [...(prev[modalConfig.data] || []), { id: Date.now(), text: inputValue, done: false }]
         }));
         break;
       case 'editTask':
         const { day, taskId } = modalConfig.data;
-        setTasks(prev => ({
+        await setTasks(prev => ({
           ...prev,
           [day]: prev[day]?.map(t => t.id === taskId ? { ...t, text: inputValue } : t) || []
         }));
         break;
       case 'generateSchedule':
         setIsGenerating(true);
-        setTimeout(() => {
-          const newItems = ['Morning routine', 'Deep work session', 'Exercise', 'Review goals'].map((text, i) => ({
+        const schedule = await ai.generateSchedule(inputValue || 'productive day');
+        if (schedule) {
+          const newItems = schedule.map((s: any, i: number) => ({
             id: Date.now() + i,
-            text,
+            text: s.text || s,
             done: false
           }));
-          setTasks(prev => ({
+          await setTasks(prev => ({
             ...prev,
             [modalConfig.data]: [...(prev[modalConfig.data] || []), ...newItems]
           }));
-          setIsGenerating(false);
-          closeModal();
-        }, 1500);
+        }
+        setIsGenerating(false);
+        closeModal();
         return;
       case 'addSystem':
-        setSystems(prev => [...prev, { id: Date.now(), goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
+        await setSystems(prev => [...prev, { id: Date.now(), goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
         break;
       case 'editSystem':
-        setSystems(prev => prev.map(s => s.id === modalConfig.data ? { ...s, goal: inputValue, why: inputWhy } : s));
+        await setSystems(prev => prev.map(s => s.id === modalConfig.data ? { ...s, goal: inputValue, why: inputWhy } : s));
         break;
       case 'deleteSystem':
-        setSystems(prev => prev.filter(s => s.id !== modalConfig.data));
+        await setSystems(prev => prev.filter(s => s.id !== modalConfig.data));
         break;
       case 'addHabitToSystem':
-        setSystems(prev => prev.map(s => s.id === modalConfig.data 
+        await setSystems(prev => prev.map(s => s.id === modalConfig.data 
           ? { ...s, habits: [...s.habits, { id: Date.now(), name: inputValue, completed: {} }] } 
           : s
         ));
         break;
       case 'editHabit':
         const { systemId: editSysId, habitId: editHabId } = modalConfig.data;
-        setSystems(prev => prev.map(s => s.id === editSysId 
+        await setSystems(prev => prev.map(s => s.id === editSysId 
           ? { ...s, habits: s.habits.map(h => h.id === editHabId ? { ...h, name: inputValue } : h) } 
           : s
         ));
         break;
       case 'deleteHabit':
         const { systemId: delSysId, habitId: delHabId } = modalConfig.data;
-        setSystems(prev => prev.map(s => s.id === delSysId 
+        await setSystems(prev => prev.map(s => s.id === delSysId 
           ? { ...s, habits: s.habits.filter(h => h.id !== delHabId) } 
           : s
         ));
         break;
       case 'generateSystems':
         setIsGenerating(true);
-        setTimeout(() => {
-          const { systemId, goalName } = modalConfig.data;
-          const newHabits = ['Daily practice', 'Weekly review', 'Track progress'].map((name, i) => ({
+        const { systemId, goalName, goalWhy } = modalConfig.data;
+        const habits = await ai.generateHabits(goalName, goalWhy);
+        if (habits) {
+          const newHabits = habits.map((h: any, i: number) => ({
             id: Date.now() + i,
-            name: `${name} for ${goalName}`,
+            name: h.name || h,
             completed: {}
           }));
-          setSystems(prev => prev.map(s => s.id === systemId ? { ...s, habits: [...s.habits, ...newHabits] } : s));
-          setIsGenerating(false);
-          closeModal();
-        }, 1500);
+          await setSystems(prev => prev.map(s => s.id === systemId ? { ...s, habits: [...s.habits, ...newHabits] } : s));
+        }
+        setIsGenerating(false);
+        closeModal();
         return;
       case 'setBudget':
-        setBudgets(prev => ({ ...prev, [modalConfig.data]: parseFloat(inputValue) }));
+        await setBudgets(prev => ({ ...prev, [modalConfig.data]: parseFloat(inputValue) }));
         break;
       case 'addCategory':
-        setCategories(prev => [...prev, inputValue]);
+        await setCategories(prev => [...prev, inputValue]);
         break;
       case 'deleteTransaction':
-        setTransactions(prev => prev.filter(tr => tr.id !== modalConfig.data));
+        await setTransactions(prev => prev.filter(tr => tr.id !== modalConfig.data));
         if (editingTransactionId === modalConfig.data) {
           setEditingTransactionId(null);
           setNewTransaction({ type: 'expense', amount: '', category: categories[0], description: '', date: new Date().toISOString().split('T')[0] });
@@ -382,17 +393,17 @@ export default function LifeCommandCenter() {
         const potentialAmount = parseFloat(parts[parts.length - 1]);
         const subName = isNaN(potentialAmount) ? inputValue : parts.slice(0, -1).join(' ');
         const subAmount = isNaN(potentialAmount) ? 0 : potentialAmount;
-        setSubscriptions(prev => [...prev, { id: Date.now(), name: subName, amount: subAmount }]);
+        await setSubscriptions(prev => [...prev, { id: Date.now(), name: subName, amount: subAmount }]);
         break;
       case 'editSubscription':
         const editParts = inputValue.split(' ');
         const editPotentialAmount = parseFloat(editParts[editParts.length - 1]);
         const editName = isNaN(editPotentialAmount) ? inputValue : editParts.slice(0, -1).join(' ');
         const editAmount = isNaN(editPotentialAmount) ? 0 : editPotentialAmount;
-        setSubscriptions(prev => prev.map(s => s.id === modalConfig.data?.id ? { ...s, name: editName, amount: editAmount } : s));
+        await setSubscriptions(prev => prev.map(s => s.id === modalConfig.data?.id ? { ...s, name: editName, amount: editAmount } : s));
         break;
       case 'deleteSubscription':
-        setSubscriptions(prev => prev.filter(s => s.id !== modalConfig.data));
+        await setSubscriptions(prev => prev.filter(s => s.id !== modalConfig.data));
         break;
     }
     closeModal();
@@ -400,7 +411,15 @@ export default function LifeCommandCenter() {
 
   // Backup/Restore
   const handleBackup = () => {
-    const data = exportAllData();
+    const data = {
+      tasks,
+      systems,
+      transactions,
+      journalEntries,
+      budgets,
+      categories,
+      subscriptions,
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -409,25 +428,25 @@ export default function LifeCommandCenter() {
     a.click();
   };
 
-  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (confirm("Overwrite current data with backup?")) {
-          if (data.tasks) setTasks(data.tasks);
-          if (data.systems) setSystems(data.systems);
-          if (data.transactions) setTransactions(data.transactions);
-          if (data.journalEntries) setJournalEntries(data.journalEntries);
-          if (data.budgets) setBudgets(data.budgets);
-          if (data.categories) setCategories(data.categories);
-          if (data.subscriptions) setSubscriptions(data.subscriptions);
-          alert("Restored successfully!");
+          if (data.tasks) await setTasks(data.tasks);
+          if (data.systems) await setSystems(data.systems);
+          if (data.transactions) await setTransactions(data.transactions);
+          if (data.journalEntries) await setJournalEntries(data.journalEntries);
+          if (data.budgets) await setBudgets(data.budgets);
+          if (data.categories) await setCategories(data.categories);
+          if (data.subscriptions) await setSubscriptions(data.subscriptions);
+          toast.success("Restored successfully!");
         }
       } catch (err) {
-        alert("Error restoring data.");
+        toast.error("Error restoring data.");
       }
     };
     reader.readAsText(file);
@@ -457,6 +476,17 @@ export default function LifeCommandCenter() {
     };
     return typeMap[modalConfig.type || ''] || "Input Required";
   };
+
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-primary mx-auto mb-4" size={40} />
+          <p className="text-muted-foreground">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -554,6 +584,8 @@ export default function LifeCommandCenter() {
               <SettingsTab
                 onBackup={handleBackup}
                 onRestore={handleRestore}
+                geminiApiKey={geminiApiKey}
+                onSaveApiKey={setGeminiApiKey}
               />
             )}
           </div>
@@ -597,7 +629,7 @@ export default function LifeCommandCenter() {
                 <>
                   <textarea readOnly className="w-full h-40 p-3 bg-muted border border-border rounded-xl text-sm" value={draftText} />
                   <button 
-                    onClick={() => { navigator.clipboard.writeText(draftText); closeModal(); alert("Copied to clipboard!"); }} 
+                    onClick={() => { navigator.clipboard.writeText(draftText); closeModal(); toast.success("Copied to clipboard!"); }} 
                     className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90"
                   >
                     Copy to Clipboard
@@ -643,7 +675,7 @@ export default function LifeCommandCenter() {
                   <div className="space-y-4">
                     <p className="text-sm text-muted-foreground bg-primary/10 p-3 rounded-lg border border-primary/20">
                       <Sparkles size={14} className="inline mr-1 text-primary" />
-                      AI will analyze your goal and create a custom list of systems for you.
+                      AI will analyze your goal and create a custom list of habits for you.
                     </p>
                   </div>
                 ) : (
