@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Tasks, System, Transaction, JournalEntry, Budget, Subscription } from '@/lib/types';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { toast } from 'sonner';
+import { SaveStatus } from '@/components/SaveIndicator';
 
 // Helper to compare IDs regardless of type
 const isSameId = (id1: string | number, id2: string | number): boolean => {
@@ -13,6 +14,25 @@ const isSameId = (id1: string | number, id2: string | number): boolean => {
 export function useSupabaseData() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Helper to manage save status
+  const withSaveStatus = async <T,>(operation: () => Promise<T>): Promise<T | undefined> => {
+    setSaveStatus('saving');
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    try {
+      const result = await operation();
+      setSaveStatus('saved');
+      saveTimeoutRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+      return result;
+    } catch (error) {
+      setSaveStatus('error');
+      saveTimeoutRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
+      throw error;
+    }
+  };
   
   // Data states
   const [tasks, setTasksState] = useState<Tasks>({});
@@ -191,7 +211,7 @@ export function useSupabaseData() {
     const newTasks = typeof updater === 'function' ? updater(tasks) : updater;
     setTasksState(newTasks);
     
-    try {
+    await withSaveStatus(async () => {
       // Get existing task IDs
       const { data: existing } = await supabase
         .from('tasks')
@@ -233,9 +253,7 @@ export function useSupabaseData() {
       
       // Reload to get proper UUIDs
       await loadData();
-    } catch (error) {
-      console.error('Error syncing tasks:', error);
-    }
+    });
   };
 
   // System operations
@@ -244,7 +262,7 @@ export function useSupabaseData() {
     const newSystems = typeof updater === 'function' ? updater(systems) : updater;
     setSystemsState(newSystems);
     
-    try {
+    await withSaveStatus(async () => {
       // Get existing data
       const { data: existingDbSystems } = await supabase
         .from('systems')
@@ -356,10 +374,7 @@ export function useSupabaseData() {
       }
 
       await loadData();
-    } catch (error) {
-      console.error('Error syncing systems:', error);
-      toast.error('Failed to save systems');
-    }
+    });
   };
 
   // Transaction operations - individual upserts
@@ -368,7 +383,7 @@ export function useSupabaseData() {
     const newTransactions = typeof updater === 'function' ? updater(transactions) : updater;
     setTransactionsState(newTransactions);
     
-    try {
+    await withSaveStatus(async () => {
       const { data: existing } = await supabase
         .from('transactions')
         .select('id')
@@ -401,9 +416,7 @@ export function useSupabaseData() {
       }
       
       await loadData();
-    } catch (error) {
-      console.error('Error syncing transactions:', error);
-    }
+    });
   };
 
   // Journal operations
@@ -412,7 +425,7 @@ export function useSupabaseData() {
     const newEntries = typeof updater === 'function' ? updater(journalEntries) : updater;
     setJournalEntriesState(newEntries);
     
-    try {
+    await withSaveStatus(async () => {
       const { data: existing } = await supabase
         .from('journal_entries')
         .select('id')
@@ -445,9 +458,7 @@ export function useSupabaseData() {
       }
       
       await loadData();
-    } catch (error) {
-      console.error('Error syncing journal:', error);
-    }
+    });
   };
 
   // Budget operations
@@ -456,7 +467,7 @@ export function useSupabaseData() {
     const newBudgets = typeof updater === 'function' ? updater(budgets) : updater;
     setBudgetsState(newBudgets);
     
-    try {
+    await withSaveStatus(async () => {
       // Upsert each budget category
       for (const [category, amount] of Object.entries(newBudgets)) {
         const { data: existing } = await supabase
@@ -478,9 +489,7 @@ export function useSupabaseData() {
           });
         }
       }
-    } catch (error) {
-      console.error('Error syncing budgets:', error);
-    }
+    });
   };
 
   // Category operations
@@ -489,7 +498,7 @@ export function useSupabaseData() {
     const newCategories = typeof updater === 'function' ? updater(categories) : updater;
     setCategoriesState(newCategories);
     
-    try {
+    await withSaveStatus(async () => {
       const { data: existing } = await supabase
         .from('categories')
         .select('id, name')
@@ -508,9 +517,7 @@ export function useSupabaseData() {
       for (const c of toDelete) {
         await supabase.from('categories').delete().eq('id', c.id);
       }
-    } catch (error) {
-      console.error('Error syncing categories:', error);
-    }
+    });
   };
 
   // Subscription operations
@@ -519,7 +526,7 @@ export function useSupabaseData() {
     const newSubs = typeof updater === 'function' ? updater(subscriptions) : updater;
     setSubscriptionsState(newSubs);
     
-    try {
+    await withSaveStatus(async () => {
       const { data: existing } = await supabase
         .from('subscriptions')
         .select('id')
@@ -548,9 +555,7 @@ export function useSupabaseData() {
       }
       
       await loadData();
-    } catch (error) {
-      console.error('Error syncing subscriptions:', error);
-    }
+    });
   };
 
   // Gemini API key operations
@@ -558,13 +563,16 @@ export function useSupabaseData() {
     if (!user) return;
     setGeminiApiKeyState(apiKey);
     
-    await supabase.from('user_settings').upsert({
-      user_id: user.id,
-      gemini_api_key: apiKey
-    }, { onConflict: 'user_id' });
+    await withSaveStatus(async () => {
+      await supabase.from('user_settings').upsert({
+        user_id: user.id,
+        gemini_api_key: apiKey
+      }, { onConflict: 'user_id' });
+    });
   };
 
   return {
+    saveStatus,
     loading,
     tasks, setTasks,
     systems, setSystems,
