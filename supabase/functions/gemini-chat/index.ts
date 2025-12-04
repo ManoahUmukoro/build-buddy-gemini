@@ -1,4 +1,6 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,10 +14,52 @@ serve(async (req) => {
 
   try {
     const { type, messages, context } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    // Get user's Gemini API key from database
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's Gemini API key from settings
+    const { data: settings, error: settingsError } = await supabase
+      .from('user_settings')
+      .select('gemini_api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error('Error fetching settings:', settingsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch user settings' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const geminiApiKey = settings?.gemini_api_key;
+    if (!geminiApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'No Gemini API key configured. Please add your API key in Settings.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     let systemPrompt = '';
@@ -23,142 +67,123 @@ serve(async (req) => {
 
     switch (type) {
       case 'smart-sort':
-        systemPrompt = 'You are a productivity expert. Analyze the given tasks and return them sorted by priority and urgency. Consider deadlines, importance, and dependencies. Return only the sorted task list as JSON array with id and text fields.';
-        userPrompt = `Sort these tasks by priority: ${JSON.stringify(context.tasks)}`;
+        systemPrompt = 'You are a productivity expert. Analyze the given tasks and return them sorted by priority and urgency. Return only a JSON array with id and text fields.';
+        userPrompt = `Sort these tasks by priority: ${JSON.stringify(context?.tasks)}`;
         break;
-      
       case 'task-breakdown':
-        systemPrompt = 'You are a productivity expert. Break down the given task into 3-5 actionable subtasks. Return as JSON array with text field for each subtask.';
-        userPrompt = `Break down this task into actionable steps: "${context.taskText}"`;
+        systemPrompt = 'You are a productivity expert. Break down tasks into 3-5 actionable subtasks. Return as JSON array with text field.';
+        userPrompt = `Break down this task: "${context?.taskText}"`;
         break;
-      
       case 'smart-draft':
-        systemPrompt = 'You are a professional writing assistant. Generate a well-written draft based on the task description. Be concise and professional.';
-        userPrompt = `Write a draft email/message for this task: "${context.taskText}"`;
+        systemPrompt = 'You are a professional writing assistant. Generate a well-written draft. Be concise and professional.';
+        userPrompt = `Write a draft for: "${context?.taskText}"`;
         break;
-      
       case 'life-audit':
-        systemPrompt = 'You are a life coach and productivity consultant. Analyze the user\'s data and provide actionable insights and recommendations.';
-        userPrompt = `Analyze this data and provide a life audit:
-          - Habit completion: ${context.completedHabits}/${context.totalHabits} today
-          - Financial balance: ${context.balance}
-          - Total tasks: ${context.totalTasks}
-          - Journal entries: ${context.journalCount}
-          Provide specific, actionable insights.`;
+        systemPrompt = 'You are a life coach. Provide actionable insights and recommendations.';
+        userPrompt = `Analyze: Habits ${context?.completedHabits}/${context?.totalHabits}, Balance: ${context?.balance}, Tasks: ${context?.totalTasks}, Journal: ${context?.journalCount}`;
         break;
-      
       case 'daily-briefing':
-        systemPrompt = 'You are a personal assistant. Provide a motivating daily briefing based on the user\'s data.';
-        userPrompt = `Generate a daily briefing:
-          - Tasks today: ${context.todayTasks}
-          - Habits to complete: ${context.habitsToComplete}
-          - Financial status: ${context.balance}
-          Make it motivating and actionable.`;
+        systemPrompt = 'You are a personal assistant. Provide a motivating daily briefing.';
+        userPrompt = `Daily briefing: ${context?.todayTasks} tasks, ${context?.habitsToComplete} habits left, balance: ${context?.balance}`;
         break;
-      
       case 'finance-analysis':
-        systemPrompt = 'You are a financial advisor. Analyze spending patterns and provide insights.';
-        userPrompt = `Analyze these finances:
-          - Total Income: ${context.totalIncome}
-          - Total Expenses: ${context.totalExpense}
-          - Balance: ${context.balance}
-          - Categories: ${JSON.stringify(context.expenseData)}
-          Provide specific recommendations.`;
+        systemPrompt = 'You are a financial advisor. Analyze spending and provide insights.';
+        userPrompt = `Analyze: Income ${context?.totalIncome}, Expenses ${context?.totalExpense}, Balance ${context?.balance}, Categories: ${JSON.stringify(context?.expenseData)}`;
         break;
-      
       case 'finance-chat':
-        systemPrompt = 'You are a friendly financial advisor. Answer questions about personal finance and provide advice based on the user\'s financial data.';
+        systemPrompt = 'You are a friendly financial advisor. Answer personal finance questions.';
         break;
-      
       case 'journal-chat':
-        systemPrompt = 'You are a supportive and empathetic journaling companion. Help users reflect on their experiences, process emotions, and gain insights. Be warm and encouraging.';
+        systemPrompt = 'You are a supportive journaling companion. Help reflect on experiences.';
         break;
-      
       case 'auto-categorize':
-        systemPrompt = 'You are a transaction categorizer. Given a transaction description and available categories, return only the most appropriate category name.';
-        userPrompt = `Categorize this transaction: "${context.description}"
-          Available categories: ${context.categories.join(', ')}
-          Return only the category name.`;
+        systemPrompt = 'You are a transaction categorizer. Return only the category name.';
+        userPrompt = `Categorize "${context?.description}" into: ${context?.categories?.join(', ')}`;
         break;
-      
-      case 'receipt-scan':
-        systemPrompt = 'You are a receipt parser. Extract the total amount and description from the receipt image. Return as JSON with amount (number) and description (string) fields.';
-        userPrompt = 'Parse this receipt image and extract the total amount and a brief description.';
-        break;
-      
       case 'generate-schedule':
-        systemPrompt = 'You are a productivity expert. Generate a daily schedule based on the user\'s goals and preferences.';
-        userPrompt = `Generate 4-5 tasks for a productive day based on: "${context.prompt}"`;
+        systemPrompt = 'You are a productivity expert. Generate a daily schedule.';
+        userPrompt = `Generate 4-5 tasks for: "${context?.prompt}". Return as JSON array with text property.`;
         break;
-      
       case 'generate-habits':
-        systemPrompt = 'You are a habit formation expert. Generate 3-4 specific, actionable habits to help achieve a goal.';
-        userPrompt = `Generate habits to achieve this goal: "${context.goal}" with this motivation: "${context.why}"`;
+        systemPrompt = 'You are a habit formation expert. Generate specific, actionable habits.';
+        userPrompt = `Generate habits for goal: "${context?.goal}" because: "${context?.why}". Return as JSON array with name property.`;
         break;
-      
       case 'weekly-report':
-        systemPrompt = 'You are a personal development coach. Analyze journal entries and provide a weekly summary with insights.';
-        userPrompt = `Analyze these journal entries from the past week: ${JSON.stringify(context.entries)}
-          Provide a summary of mood trends, wins, areas for improvement, and actionable recommendations.`;
+        systemPrompt = 'You are a personal development coach. Analyze entries and provide insights.';
+        userPrompt = `Analyze journal entries: ${JSON.stringify(context?.entries)}`;
         break;
-      
       default:
         systemPrompt = 'You are a helpful AI assistant.';
     }
 
+    // Build messages for Gemini API
     const apiMessages = [
-      { role: 'system', content: systemPrompt },
-      ...(messages || []),
-      ...(userPrompt ? [{ role: 'user', content: userPrompt }] : [])
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: 'Understood. I will help you.' }] },
     ];
 
-    console.log('Calling Lovable AI with type:', type);
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        apiMessages.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        });
+      }
+    }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: apiMessages,
-      }),
-    });
+    if (userPrompt) {
+      apiMessages.push({ role: 'user', parts: [{ text: userPrompt }] });
+    }
+
+    console.log('Calling Gemini API with type:', type);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: apiMessages,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'AI credits depleted. Please add credits to continue.' }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error('Gemini API error:', response.status, errorText);
+      
+      if (response.status === 400 && errorText.includes('API_KEY_INVALID')) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid Gemini API key. Please check your API key in Settings.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ error: 'Gemini API error. Please check your API key.' }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    console.log('AI response received for type:', type);
+    console.log('Gemini response received for type:', type);
 
-    return new Response(JSON.stringify({ content }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ content }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Error in gemini-chat function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

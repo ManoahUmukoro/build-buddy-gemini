@@ -12,6 +12,7 @@ import { SettingsTab } from '@/components/tabs/SettingsTab';
 import { TabId, ModalConfig, ChatMessage, JournalEntry } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
+import { useProfile } from '@/hooks/useProfile';
 import { getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,6 +42,9 @@ export default function LifeCommandCenter() {
   // AI Hook
   const ai = useAI();
   
+  // Profile Hook
+  const { profile } = useProfile();
+  
   // Local UI State
   const [sortingDay, setSortingDay] = useState<string | null>(null);
   const [breakingDownTask, setBreakingDownTask] = useState<number | null>(null);
@@ -62,11 +66,19 @@ export default function LifeCommandCenter() {
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [journalChatHistory, setJournalChatHistory] = useState<ChatMessage[]>([]);
-  const [dailyBriefing, setDailyBriefing] = useState("Ready to conquer the day?");
+  const welcomeMessage = profile?.display_name ? `Welcome, ${profile.display_name}!` : "Ready to conquer the day?";
+  const [dailyBriefing, setDailyBriefing] = useState(welcomeMessage);
   const [lifeAudit, setLifeAudit] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroActive, setPomodoroActive] = useState(false);
+
+  // Update welcome message when profile loads
+  useEffect(() => {
+    if (profile?.display_name) {
+      setDailyBriefing(`Welcome, ${profile.display_name}!`);
+    }
+  }, [profile]);
 
   // Pomodoro Timer
   useEffect(() => {

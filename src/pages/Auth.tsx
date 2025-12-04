@@ -13,6 +13,9 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otp, setOtp] = useState('');
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -40,12 +43,21 @@ export default function Auth() {
         if (error) throw error;
         toast.success('Welcome back!');
       } else {
-        const redirectUrl = `${window.location.origin}/`;
+        if (!displayName.trim()) {
+          toast.error('Please enter your name');
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({ 
           email, 
           password,
-          options: { emailRedirectTo: redirectUrl }
+          options: { 
+            emailRedirectTo: `${window.location.origin}/`,
+            data: { display_name: displayName.trim() }
+          }
         });
+        
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered. Please sign in.');
@@ -54,7 +66,8 @@ export default function Auth() {
             throw error;
           }
         } else {
-          toast.success('Account created! Welcome to Life Command Center.');
+          setShowOtpInput(true);
+          toast.success('Verification code sent to your email!');
         }
       }
     } catch (error: any) {
@@ -63,6 +76,134 @@ export default function Auth() {
       setLoading(false);
     }
   };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'signup'
+      });
+
+      if (error) throw error;
+
+      // Create profile after successful verification
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: data.user.id,
+            display_name: displayName.trim()
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+        }
+      }
+
+      toast.success('Account verified successfully!');
+      navigate('/');
+    } catch (error: any) {
+      toast.error(error.message || 'Verification failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      if (error) throw error;
+      toast.success('Verification code resent!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to resend code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showOtpInput) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
+              <Mail className="text-primary" size={32} />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Check Your Email</h1>
+            <p className="text-muted-foreground text-sm">
+              We sent a verification code to <strong className="text-foreground">{email}</strong>
+            </p>
+          </div>
+
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-card">
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp" className="text-xs font-bold text-muted-foreground uppercase">
+                  Verification Code
+                </Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  className="h-12 bg-muted border-0 rounded-xl text-center text-lg tracking-widest"
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify & Continue'
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center space-y-2">
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={loading}
+                className="text-sm text-primary hover:underline"
+              >
+                Didn't receive the code? Resend
+              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOtpInput(false);
+                    setOtp('');
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  ← Back to sign up
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -98,6 +239,26 @@ export default function Auth() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="displayName" className="text-xs font-bold text-muted-foreground uppercase">
+                  Your Name
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <Input
+                    id="displayName"
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="pl-10 h-12 bg-muted border-0 rounded-xl"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-xs font-bold text-muted-foreground uppercase">
                 Email

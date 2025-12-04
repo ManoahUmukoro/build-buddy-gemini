@@ -112,109 +112,109 @@ export function FinanceTab({
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-success/10 p-6 rounded-xl border border-success/20 shadow-soft">
-          <div className="flex items-center gap-2 text-success mb-2 font-medium">
-            <TrendingUp size={20} /> Income
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+        <div className="bg-success/10 p-4 md:p-6 rounded-xl border border-success/20 shadow-soft">
+          <div className="flex items-center gap-2 text-success mb-1 md:mb-2 font-medium text-sm md:text-base">
+            <TrendingUp size={18} className="shrink-0" /> Income
           </div>
-          <div className="text-xl md:text-3xl font-bold text-success truncate">
+          <div className="text-lg md:text-3xl font-bold text-success truncate">
             {formatCurrency(totalIncome, currency)}
           </div>
         </div>
         
-        <div className="bg-primary/10 p-6 rounded-xl border border-primary/20 shadow-soft">
-          <div className="flex items-center gap-2 text-primary mb-2 font-medium">
-            <Wallet size={20} /> Safe to Spend Today
+        <div className="bg-primary/10 p-4 md:p-6 rounded-xl border border-primary/20 shadow-soft">
+          <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
+            <Wallet size={18} className="shrink-0" /> <span className="truncate">Safe Daily Spend</span>
           </div>
-          <div className="text-xl md:text-3xl font-bold text-primary truncate">
+          <div className="text-lg md:text-3xl font-bold text-primary truncate">
             {formatCurrency(safeDailySpend, currency)}
-            <span className="text-xs text-primary/70 font-normal block mt-1">After bills & current spend</span>
           </div>
+          <span className="text-xs text-primary/70 font-normal hidden md:block mt-1">After bills & current spend</span>
         </div>
         
-        <div className="bg-card p-6 rounded-xl border border-border shadow-soft relative">
+        <div className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-soft relative">
           <button 
             onClick={() => setCurrency(currency === '₦' ? '$' : '₦')} 
             className="absolute top-2 right-2 bg-muted p-1 rounded text-xs font-bold text-primary"
           >
             <RefreshCw size={12} />
           </button>
-          <div className="flex items-center gap-2 text-primary mb-2 font-medium">
-            <DollarSign size={20} /> Balance
+          <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
+            <DollarSign size={18} className="shrink-0" /> Balance
           </div>
-          <div className={`text-xl md:text-3xl font-bold truncate ${balance >= 0 ? 'text-card-foreground' : 'text-destructive'}`}>
+          <div className={`text-lg md:text-3xl font-bold truncate ${balance >= 0 ? 'text-card-foreground' : 'text-destructive'}`}>
             {formatCurrency(balance, currency)}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
           {/* Transaction Form */}
-          <div className="bg-card p-6 rounded-xl shadow-soft border border-border">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-card-foreground">
+          <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
+            <div className="flex justify-between items-center mb-3 md:mb-4">
+              <h3 className="font-bold text-card-foreground text-sm md:text-base">
                 {editingTransactionId ? 'Edit Record' : 'Add Transaction'}
               </h3>
             </div>
-            <form onSubmit={handleTransactionSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4">
+            <form onSubmit={handleTransactionSubmit} className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-4">
+              <div className="col-span-1 md:col-span-4">
                 <input 
                   type="date" 
                   value={newTransaction.date} 
                   onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
-                  className="w-full p-3 border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none" 
+                  className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none" 
                   required 
                 />
               </div>
-              <div className="md:col-span-4">
+              <div className="col-span-1 md:col-span-4">
                 <select 
                   value={newTransaction.type} 
                   onChange={e => setNewTransaction({ ...newTransaction, type: e.target.value as 'income' | 'expense' })}
-                  className="w-full p-3 border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none"
+                  className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none"
                 >
                   <option value="income">Income (+)</option>
                   <option value="expense">Expense (-)</option>
                 </select>
               </div>
-              <div className="md:col-span-4">
+              <div className="col-span-2 md:col-span-4">
                 <input 
                   type="number" 
                   placeholder="Amount" 
                   value={newTransaction.amount} 
                   onChange={e => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                  className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
+                  className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
                   required 
                 />
               </div>
               
               {newTransaction.type === 'expense' ? (
                 <>
-                  <div className="md:col-span-5 flex gap-2">
+                  <div className="col-span-2 md:col-span-5 flex gap-2">
                     <select 
                       value={newTransaction.category} 
                       onChange={e => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                      className="w-full p-3 border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none"
+                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none"
                     >
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <button 
                       type="button" 
                       onClick={() => onOpenModal('addCategory')} 
-                      className="p-3 bg-muted rounded-lg shrink-0 hover:bg-accent"
+                      className="p-2.5 md:p-3 bg-muted rounded-lg shrink-0 hover:bg-accent"
                     >
-                      <Plus size={20} />
+                      <Plus size={18} />
                     </button>
                   </div>
-                  <div className="md:col-span-7 relative">
+                  <div className="col-span-2 md:col-span-7 relative">
                     <input 
                       type="text" 
                       placeholder="Description" 
                       value={newTransaction.description} 
                       onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                      className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none pr-10" 
+                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none pr-10" 
                       required 
                     />
                     <button 
@@ -228,22 +228,22 @@ export function FinanceTab({
                   </div>
                 </>
               ) : (
-                <div className="md:col-span-12">
+                <div className="col-span-2 md:col-span-12">
                   <input 
                     type="text" 
                     placeholder="Description" 
                     value={newTransaction.description} 
                     onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                    className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
+                    className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
                     required 
                   />
                 </div>
               )}
               
-              <div className="md:col-span-12">
+              <div className="col-span-2 md:col-span-12">
                 <button 
                   type="submit" 
-                  className={`w-full py-3 rounded-lg font-medium text-secondary-foreground ${
+                  className={`w-full py-2.5 md:py-3 rounded-lg font-medium text-sm md:text-base text-secondary-foreground ${
                     editingTransactionId ? 'bg-primary' : 'bg-secondary'
                   }`}
                 >
@@ -254,19 +254,19 @@ export function FinanceTab({
           </div>
 
           {/* Recent Records */}
-          <div className="bg-card p-6 rounded-xl shadow-soft border border-border">
-            <h3 className="font-bold text-card-foreground mb-4">Recent Records</h3>
+          <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
+            <h3 className="font-bold text-card-foreground mb-3 md:mb-4 text-sm md:text-base">Recent Records</h3>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {transactions.map((t, idx) => (
-                <div key={`${t.id}-${idx}`} className="flex justify-between items-center p-3 bg-muted rounded-lg text-sm border border-border/50">
-                  <div>
-                    <div className="font-medium text-card-foreground">{t.description}</div>
+                <div key={`${t.id}-${idx}`} className="flex justify-between items-start md:items-center p-2.5 md:p-3 bg-muted rounded-lg text-sm border border-border/50 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-card-foreground text-xs md:text-sm truncate">{t.description}</div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(t.date).toLocaleDateString()} • {t.category || 'Income'}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`font-bold ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                  <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                    <span className={`font-bold text-xs md:text-sm ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                       {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, currency)}
                     </span>
                     <button 
@@ -280,13 +280,13 @@ export function FinanceTab({
                         });
                         setEditingTransactionId(t.id);
                       }} 
-                      className="text-muted-foreground/50 hover:text-primary"
+                      className="text-muted-foreground/50 hover:text-primary p-1"
                     >
                       <Edit2 size={14} />
                     </button>
                     <button 
                       onClick={() => onOpenModal('deleteTransaction', t.id)} 
-                      className="text-muted-foreground/50 hover:text-destructive"
+                      className="text-muted-foreground/50 hover:text-destructive p-1"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -297,11 +297,11 @@ export function FinanceTab({
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           {/* Fixed Costs */}
-          <div className="bg-card p-6 rounded-xl shadow-soft border border-border">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-card-foreground">Fixed Costs</h3>
+          <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
+            <div className="flex justify-between items-center mb-3 md:mb-4">
+              <h3 className="font-bold text-card-foreground text-sm md:text-base">Fixed Costs</h3>
               <button 
                 onClick={() => onOpenModal('addSubscription')} 
                 className="text-primary text-xs font-bold bg-primary/10 px-2 py-1 rounded hover:bg-primary/20"
@@ -309,15 +309,15 @@ export function FinanceTab({
                 + Add
               </button>
             </div>
-            <div className="space-y-3 max-h-48 overflow-y-auto">
+            <div className="space-y-2 md:space-y-3 max-h-48 overflow-y-auto">
               {subscriptions.map(sub => (
-                <div key={sub.id} className="flex justify-between items-center text-sm p-2 bg-muted rounded border border-border/50 group">
-                  <span className="font-medium text-card-foreground">{sub.name}</span>
-                  <div className="flex items-center gap-2">
+                <div key={sub.id} className="flex justify-between items-center text-xs md:text-sm p-2 bg-muted rounded border border-border/50 group">
+                  <span className="font-medium text-card-foreground truncate">{sub.name}</span>
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-muted-foreground">{formatCurrency(sub.amount, currency)}</span>
                     <button 
                       onClick={() => onOpenModal('editSubscription', { id: sub.id, value: `${sub.name} ${sub.amount}` })} 
-                      className="text-muted-foreground/50 hover:text-primary p-1 opacity-0 group-hover:opacity-100"
+                      className="text-muted-foreground/50 hover:text-primary p-1 md:opacity-0 md:group-hover:opacity-100"
                     >
                       <Edit2 size={12} />
                     </button>
@@ -334,24 +334,24 @@ export function FinanceTab({
                 <p className="text-xs text-muted-foreground italic text-center">No fixed costs added.</p>
               )}
             </div>
-            <div className="mt-3 pt-3 border-t border-border flex justify-between text-sm font-bold text-card-foreground">
+            <div className="mt-3 pt-3 border-t border-border flex justify-between text-xs md:text-sm font-bold text-card-foreground">
               <span>Total Fixed:</span>
               <span>{formatCurrency(totalFixedCosts, currency)}</span>
             </div>
           </div>
 
           {/* Spending Chart */}
-          <div className="bg-card p-6 rounded-xl shadow-soft border border-border">
-            <h3 className="font-bold text-card-foreground mb-2">Spending Chart</h3>
-            <div className="h-40 w-full mb-4">
+          <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
+            <h3 className="font-bold text-card-foreground mb-2 text-sm md:text-base">Spending Chart</h3>
+            <div className="h-36 md:h-40 w-full mb-3 md:mb-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie 
                     data={expenseData} 
                     cx="50%" 
                     cy="50%" 
-                    innerRadius={40} 
-                    outerRadius={60} 
+                    innerRadius={35} 
+                    outerRadius={55} 
                     paddingAngle={5} 
                     dataKey="value"
                   >
@@ -367,19 +367,19 @@ export function FinanceTab({
             <button 
               onClick={onAnalyzeFinances} 
               disabled={isAnalyzingFinance || transactions.length === 0} 
-              className="w-full bg-primary/10 text-primary hover:bg-primary/20 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 mb-2"
+              className="w-full bg-primary/10 text-primary hover:bg-primary/20 py-2 rounded-lg font-medium text-xs md:text-sm flex items-center justify-center gap-2 mb-2"
             >
               {isAnalyzingFinance ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
               {isAnalyzingFinance ? 'Checking...' : 'Quick Check'}
             </button>
             {financeAnalysis && (
-              <div className="bg-primary/10 p-3 rounded-lg text-xs text-card-foreground whitespace-pre-wrap">
+              <div className="bg-primary/10 p-2.5 md:p-3 rounded-lg text-xs text-card-foreground whitespace-pre-wrap">
                 {financeAnalysis}
               </div>
             )}
             <button 
               onClick={() => setIsFinanceChatOpen(true)} 
-              className="w-full mt-4 bg-secondary text-secondary-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              className="w-full mt-3 md:mt-4 bg-secondary text-secondary-foreground py-2 rounded-lg text-xs md:text-sm font-medium flex items-center justify-center gap-2"
             >
               <MessageCircle size={14} /> Chat with Finance Expert
             </button>
