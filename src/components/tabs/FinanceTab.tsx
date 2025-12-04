@@ -298,10 +298,10 @@ export function FinanceTab({
         </div>
 
         <div className="space-y-4 md:space-y-6">
-          {/* Fixed Costs */}
+          {/* Active Subscriptions */}
           <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
             <div className="flex justify-between items-center mb-3 md:mb-4">
-              <h3 className="font-bold text-card-foreground text-sm md:text-base">Fixed Costs</h3>
+              <h3 className="font-bold text-card-foreground text-sm md:text-base">Active Subscriptions</h3>
               <button 
                 onClick={() => onOpenModal('addSubscription')} 
                 className="text-primary text-xs font-bold bg-primary/10 px-2 py-1 rounded hover:bg-primary/20"
@@ -331,11 +331,11 @@ export function FinanceTab({
                 </div>
               ))}
               {subscriptions.length === 0 && (
-                <p className="text-xs text-muted-foreground italic text-center">No fixed costs added.</p>
+                <p className="text-xs text-muted-foreground italic text-center">No subscriptions added.</p>
               )}
             </div>
             <div className="mt-3 pt-3 border-t border-border flex justify-between text-xs md:text-sm font-bold text-card-foreground">
-              <span>Total Fixed:</span>
+              <span>Total Subscriptions:</span>
               <span>{formatCurrency(totalFixedCosts, currency)}</span>
             </div>
           </div>

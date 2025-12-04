@@ -69,24 +69,24 @@ export function DashboardTab({
   return (
     <div className="space-y-6">
       {/* Command Center Snapshot */}
-      <div className="bg-card p-6 rounded-2xl shadow-soft border border-border grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Today's Systems</span>
-          <div className="text-2xl font-bold text-card-foreground mt-1">
-            {completedHabits} / {totalHabits} <span className="text-sm font-normal text-muted-foreground">Done</span>
+      <div className="bg-card p-4 md:p-6 rounded-2xl shadow-soft border border-border grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+        <div className="flex flex-col p-2 md:p-0">
+          <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-bold">Today's Systems</span>
+          <div className="text-lg md:text-2xl font-bold text-card-foreground mt-0.5 md:mt-1">
+            {completedHabits} / {totalHabits} <span className="text-xs md:text-sm font-normal text-muted-foreground">Done</span>
           </div>
         </div>
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Net Balance</span>
-          <div className={`text-2xl font-bold mt-1 ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
+        <div className="flex flex-col p-2 md:p-0">
+          <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-bold">Net Balance</span>
+          <div className={`text-lg md:text-2xl font-bold mt-0.5 md:mt-1 ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
             {formatCurrency(balance, currency)}
           </div>
         </div>
-        <div className="flex flex-col md:col-span-2 relative">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Daily Briefing</span>
-          <div className="text-sm font-medium text-muted-foreground mt-1 italic pr-6">{dailyBriefing}</div>
-          <button onClick={onDailyBriefing} className="absolute right-0 top-0 text-muted-foreground/50 hover:text-primary">
-            <RefreshCw size={14} />
+        <div className="flex flex-col sm:col-span-2 relative p-2 md:p-0">
+          <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-bold">Daily Briefing</span>
+          <div className="text-xs md:text-sm font-medium text-muted-foreground mt-0.5 md:mt-1 italic pr-6 line-clamp-2 md:line-clamp-none">{dailyBriefing}</div>
+          <button onClick={onDailyBriefing} className="absolute right-2 md:right-0 top-2 md:top-0 text-muted-foreground/50 hover:text-primary">
+            <RefreshCw size={12} className="md:w-[14px] md:h-[14px]" />
           </button>
         </div>
       </div>
