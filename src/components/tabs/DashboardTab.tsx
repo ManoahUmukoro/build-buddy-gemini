@@ -199,9 +199,10 @@ interface TaskItemProps {
 }
 
 function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onBreakdown, onSmartDraft, onStartPomodoro }: TaskItemProps) {
-  const isSubtask = task.text.startsWith('↳');
+  const taskText = task.text || '';
+  const isSubtask = taskText.startsWith('↳');
   const showDraftButton = ['email', 'message', 'write', 'contact'].some(keyword => 
-    task.text.toLowerCase().includes(keyword)
+    taskText.toLowerCase().includes(keyword)
   );
 
   return (
@@ -213,7 +214,7 @@ function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onB
         className="mt-1 mr-2 cursor-pointer w-4 h-4 accent-primary"
       />
       <span className={`text-sm flex-1 break-words ${task.done ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
-        {task.text}
+        {taskText}
       </span>
       
       <div className="flex opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-muted pl-2 items-center bg-opacity-90 rounded-lg backdrop-blur-sm">
