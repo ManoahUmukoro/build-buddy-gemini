@@ -49,8 +49,8 @@ interface FinanceTabProps {
     description: string;
     date: string;
   }>>;
-  editingTransactionId: number | null;
-  setEditingTransactionId: (id: number | null) => void;
+  editingTransactionId: string | number | null;
+  setEditingTransactionId: (id: string | number | null) => void;
 }
 
 export function FinanceTab({
@@ -92,7 +92,7 @@ export function FinanceTab({
 
     if (editingTransactionId) {
       setTransactions(prev => prev.map(t => 
-        t.id === editingTransactionId ? { ...tData, id: t.id } as Transaction : t
+        String(t.id) === String(editingTransactionId) ? { ...tData, id: t.id } as Transaction : t
       ));
       setEditingTransactionId(null);
     } else {

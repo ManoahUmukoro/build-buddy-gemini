@@ -12,14 +12,14 @@ interface SystemsTabProps {
 export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps) {
   const currentDayIndex = getCurrentDayIndex();
 
-  const toggleHabit = (systemId: number, habitId: number, dayIndex: number) => {
+  const toggleHabit = (systemId: string | number, habitId: string | number, dayIndex: number) => {
     const key = `d${dayIndex}`;
     setSystems(prev => prev.map(s => 
-      s.id === systemId 
+      String(s.id) === String(systemId) 
         ? {
             ...s,
             habits: s.habits.map(h => 
-              h.id === habitId 
+              String(h.id) === String(habitId) 
                 ? { ...h, completed: { ...h.completed, [key]: !h.completed[key] } }
                 : h
             )

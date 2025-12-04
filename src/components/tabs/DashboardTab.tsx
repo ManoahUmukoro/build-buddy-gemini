@@ -16,9 +16,9 @@ interface DashboardTabProps {
   setPomodoroActive: (active: boolean) => void;
   setPomodoroTime: (time: number) => void;
   sortingDay: string | null;
-  breakingDownTask: number | null;
+  breakingDownTask: string | number | null;
   onSmartSort: (day: string) => void;
-  onBreakdownTask: (day: string, taskId: number, taskText: string) => void;
+  onBreakdownTask: (day: string, taskId: string | number, taskText: string) => void;
   onSmartDraft: (taskText: string) => void;
   onLifeAudit: () => void;
   onDailyBriefing: () => void;
@@ -46,17 +46,17 @@ export function DashboardTab({
   onDailyBriefing,
   onOpenModal,
 }: DashboardTabProps) {
-  const toggleTaskDone = (day: string, taskId: number) => {
+  const toggleTaskDone = (day: string, taskId: string | number) => {
     setTasks(prev => ({
       ...prev,
-      [day]: prev[day]?.map(t => t.id === taskId ? { ...t, done: !t.done } : t) || []
+      [day]: prev[day]?.map(t => String(t.id) === String(taskId) ? { ...t, done: !t.done } : t) || []
     }));
   };
 
-  const deleteTask = (day: string, taskId: number) => {
+  const deleteTask = (day: string, taskId: string | number) => {
     setTasks(prev => ({
       ...prev,
-      [day]: prev[day]?.filter(t => t.id !== taskId) || []
+      [day]: prev[day]?.filter(t => String(t.id) !== String(taskId)) || []
     }));
   };
 
@@ -189,7 +189,7 @@ export function DashboardTab({
 interface TaskItemProps {
   task: Task;
   day: string;
-  breakingDownTask: number | null;
+  breakingDownTask: string | number | null;
   onToggle: () => void;
   onDelete: () => void;
   onEdit: () => void;
@@ -228,10 +228,10 @@ function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onB
             <button 
               onClick={onBreakdown} 
               className="text-primary/70 hover:text-primary mr-1 p-1" 
-              disabled={breakingDownTask === task.id} 
+              disabled={String(breakingDownTask) === String(task.id)} 
               title="AI Breakdown"
             >
-              {breakingDownTask === task.id ? <Loader2 className="animate-spin" size={12} /> : <Wand2 size={12} />}
+              {String(breakingDownTask) === String(task.id) ? <Loader2 className="animate-spin" size={12} /> : <Wand2 size={12} />}
             </button>
           </>
         )}
