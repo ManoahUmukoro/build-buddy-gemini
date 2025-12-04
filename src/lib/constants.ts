@@ -1,6 +1,6 @@
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
-export const DEFAULT_CATEGORIES = ['Food', 'Transport', 'Rent/Bills', 'Entertainment', 'Shopping', 'Health', 'Other'] as const;
+export const DEFAULT_CATEGORIES: string[] = ['Food', 'Transport', 'Rent/Bills', 'Entertainment', 'Shopping', 'Health', 'Other'];
 
 export const MOODS = [
   { value: 1, label: '😩 Drained', emoji: '😩' },
