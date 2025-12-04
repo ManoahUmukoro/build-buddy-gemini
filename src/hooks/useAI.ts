@@ -34,7 +34,7 @@ export function useAI() {
     }
   };
 
-  const smartSort = async (tasks: Array<{ id: number; text: string; done: boolean }>) => {
+  const smartSort = async (tasks: Array<{ id: string | number; text: string; done: boolean }>) => {
     const result = await callAI({
       type: 'smart-sort',
       context: { tasks }

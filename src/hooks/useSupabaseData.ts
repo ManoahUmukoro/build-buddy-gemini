@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { Tasks, System, Transaction, JournalEntry, Budget, Subscription, Habit } from '@/lib/types';
+import { Tasks, System, Transaction, JournalEntry, Budget, Subscription } from '@/lib/types';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { toast } from 'sonner';
+
+// Helper to compare IDs regardless of type
+const isSameId = (id1: string | number, id2: string | number): boolean => {
+  return String(id1) === String(id2);
+};
 
 export function useSupabaseData() {
   const { user } = useAuth();
@@ -39,7 +44,7 @@ export function useSupabaseData() {
         const tasksByDay: Tasks = {};
         tasksData.forEach(t => {
           if (!tasksByDay[t.day]) tasksByDay[t.day] = [];
-          tasksByDay[t.day].push({ id: t.id as unknown as number, text: t.text, done: t.done });
+          tasksByDay[t.day].push({ id: t.id, text: t.text, done: t.done });
         });
         setTasksState(tasksByDay);
       }
@@ -60,18 +65,18 @@ export function useSupabaseData() {
         .select('*')
         .eq('user_id', user.id);
 
-      if (systemsData && habitsData) {
+      if (systemsData) {
         const systemsWithHabits: System[] = systemsData.map(s => {
-          const systemHabits = habitsData.filter(h => h.system_id === s.id);
+          const systemHabits = habitsData?.filter(h => h.system_id === s.id) || [];
           return {
-            id: s.id as any, // Keep as UUID string
+            id: s.id,
             goal: s.goal,
             why: s.why || '',
             habits: systemHabits.map(h => {
               const habitCompletions = completionsData?.filter(c => c.habit_id === h.id) || [];
               const completed: { [key: string]: boolean } = {};
               habitCompletions.forEach(c => { completed[c.date] = c.completed; });
-              return { id: h.id as any, name: h.name, completed }; // Keep as UUID string
+              return { id: h.id, name: h.name, completed };
             })
           };
         });
@@ -87,7 +92,7 @@ export function useSupabaseData() {
       
       if (transData) {
         setTransactionsState(transData.map(t => ({
-          id: t.id as unknown as number,
+          id: t.id,
           type: t.type as 'income' | 'expense',
           amount: Number(t.amount),
           category: t.category,
@@ -105,7 +110,7 @@ export function useSupabaseData() {
       
       if (journalData) {
         setJournalEntriesState(journalData.map(j => ({
-          id: j.id as unknown as number,
+          id: j.id,
           date: j.date,
           mood: j.mood,
           win: j.win || '',
@@ -145,7 +150,7 @@ export function useSupabaseData() {
       
       if (subsData) {
         setSubscriptionsState(subsData.map(s => ({
-          id: s.id as unknown as number,
+          id: s.id,
           name: s.name,
           amount: Number(s.amount)
         })));
@@ -174,35 +179,73 @@ export function useSupabaseData() {
     loadData();
   }, [loadData]);
 
-  // Task operations
+  // Helper to check if ID is a UUID from database
+  const isUUID = (id: string | number): boolean => {
+    const str = String(id);
+    return str.includes('-') && str.length === 36;
+  };
+
+  // Task operations - upsert based approach
   const setTasks = async (updater: Tasks | ((prev: Tasks) => Tasks)) => {
     if (!user) return;
     const newTasks = typeof updater === 'function' ? updater(tasks) : updater;
     setTasksState(newTasks);
     
-    // Sync to database
-    await supabase.from('tasks').delete().eq('user_id', user.id);
-    const taskRows = Object.entries(newTasks).flatMap(([day, dayTasks]) =>
-      dayTasks.map(t => ({
-        id: typeof t.id === 'string' ? t.id : undefined,
-        user_id: user.id,
-        day,
-        text: t.text,
-        done: t.done
-      }))
-    );
-    if (taskRows.length > 0) {
-      await supabase.from('tasks').upsert(taskRows);
+    try {
+      // Get existing task IDs
+      const { data: existing } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('user_id', user.id);
+      const existingIds = new Set(existing?.map(t => t.id) || []);
+      
+      // Flatten new tasks
+      const allNewTasks: { day: string; id: string | number; text: string; done: boolean }[] = [];
+      Object.entries(newTasks).forEach(([day, dayTasks]) => {
+        dayTasks.forEach(t => allNewTasks.push({ day, ...t }));
+      });
+      
+      // Separate inserts and updates
+      for (const task of allNewTasks) {
+        const taskIdStr = String(task.id);
+        if (isUUID(task.id) && existingIds.has(taskIdStr)) {
+          // Update existing
+          await supabase.from('tasks')
+            .update({ text: task.text, done: task.done, day: task.day })
+            .eq('id', taskIdStr);
+        } else if (!isUUID(task.id)) {
+          // Insert new
+          await supabase.from('tasks').insert({
+            user_id: user.id,
+            day: task.day,
+            text: task.text,
+            done: task.done
+          });
+        }
+      }
+      
+      // Delete removed tasks
+      const newTaskIds = allNewTasks.filter(t => isUUID(t.id)).map(t => String(t.id));
+      const toDelete = existing?.filter(t => !newTaskIds.includes(t.id)) || [];
+      for (const task of toDelete) {
+        await supabase.from('tasks').delete().eq('id', task.id);
+      }
+      
+      // Reload to get proper UUIDs
+      await loadData();
+    } catch (error) {
+      console.error('Error syncing tasks:', error);
     }
   };
 
-  // System operations - simplified and reliable approach
+  // System operations
   const setSystems = async (updater: System[] | ((prev: System[]) => System[])) => {
     if (!user) return;
     const newSystems = typeof updater === 'function' ? updater(systems) : updater;
+    setSystemsState(newSystems);
     
     try {
-      // Get existing data from database
+      // Get existing data
       const { data: existingDbSystems } = await supabase
         .from('systems')
         .select('id')
@@ -215,26 +258,23 @@ export function useSupabaseData() {
         .eq('user_id', user.id);
       const existingHabitIds = new Set(existingDbHabits?.map(h => h.id) || []);
 
-      // Track new IDs for mapping
+      // Track ID mappings
       const systemIdMap: Record<string, string> = {};
       const habitIdMap: Record<string, string> = {};
 
       // Process each system
       for (const system of newSystems) {
         const systemIdStr = String(system.id);
-        const isUUID = systemIdStr.includes('-') && systemIdStr.length === 36;
-        const isExisting = isUUID && existingSystemIds.has(systemIdStr);
+        const isExisting = isUUID(system.id) && existingSystemIds.has(systemIdStr);
 
         let actualSystemId: string;
         
         if (isExisting) {
-          // Update existing system
           await supabase.from('systems')
             .update({ goal: system.goal, why: system.why })
             .eq('id', systemIdStr);
           actualSystemId = systemIdStr;
         } else {
-          // Insert new system
           const { data: inserted, error } = await supabase.from('systems')
             .insert({ user_id: user.id, goal: system.goal, why: system.why })
             .select('id')
@@ -249,22 +289,19 @@ export function useSupabaseData() {
         
         systemIdMap[systemIdStr] = actualSystemId;
 
-        // Process habits for this system
+        // Process habits
         for (const habit of system.habits) {
           const habitIdStr = String(habit.id);
-          const isHabitUUID = habitIdStr.includes('-') && habitIdStr.length === 36;
-          const isHabitExisting = isHabitUUID && existingHabitIds.has(habitIdStr);
+          const isHabitExisting = isUUID(habit.id) && existingHabitIds.has(habitIdStr);
 
           let actualHabitId: string;
 
           if (isHabitExisting) {
-            // Update existing habit
             await supabase.from('habits')
               .update({ name: habit.name, system_id: actualSystemId })
               .eq('id', habitIdStr);
             actualHabitId = habitIdStr;
           } else {
-            // Insert new habit
             const { data: inserted, error } = await supabase.from('habits')
               .insert({ user_id: user.id, system_id: actualSystemId, name: habit.name })
               .select('id')
@@ -279,19 +316,18 @@ export function useSupabaseData() {
           
           habitIdMap[habitIdStr] = actualHabitId;
 
-          // Sync habit completions
+          // Sync completions
           for (const [date, completed] of Object.entries(habit.completed)) {
-            // Check if completion exists
-            const { data: existing } = await supabase.from('habit_completions')
+            const { data: existingCompletion } = await supabase.from('habit_completions')
               .select('id')
               .eq('habit_id', actualHabitId)
               .eq('date', date)
-              .single();
+              .maybeSingle();
             
-            if (existing) {
+            if (existingCompletion) {
               await supabase.from('habit_completions')
                 .update({ completed })
-                .eq('id', existing.id);
+                .eq('id', existingCompletion.id);
             } else {
               await supabase.from('habit_completions')
                 .insert({ habit_id: actualHabitId, user_id: user.id, date, completed });
@@ -300,11 +336,11 @@ export function useSupabaseData() {
         }
       }
 
-      // Delete removed systems
+      // Delete removed systems and their habits
       const newSystemIds = newSystems.map(s => systemIdMap[String(s.id)] || String(s.id));
       const removedSystems = existingDbSystems?.filter(s => !newSystemIds.includes(s.id)) || [];
       for (const removed of removedSystems) {
-        // Delete habits first (no cascade)
+        await supabase.from('habit_completions').delete().match({ user_id: user.id });
         await supabase.from('habits').delete().eq('system_id', removed.id);
         await supabase.from('systems').delete().eq('id', removed.id);
       }
@@ -319,7 +355,6 @@ export function useSupabaseData() {
         await supabase.from('habits').delete().eq('id', removed.id);
       }
 
-      // Reload data to get proper UUIDs in state
       await loadData();
     } catch (error) {
       console.error('Error syncing systems:', error);
@@ -327,23 +362,47 @@ export function useSupabaseData() {
     }
   };
 
-  // Transaction operations
+  // Transaction operations - individual upserts
   const setTransactions = async (updater: Transaction[] | ((prev: Transaction[]) => Transaction[])) => {
     if (!user) return;
     const newTransactions = typeof updater === 'function' ? updater(transactions) : updater;
     setTransactionsState(newTransactions);
     
-    await supabase.from('transactions').delete().eq('user_id', user.id);
-    const rows = newTransactions.map(t => ({
-      user_id: user.id,
-      type: t.type,
-      amount: t.amount,
-      category: t.category,
-      description: t.description,
-      date: t.date
-    }));
-    if (rows.length > 0) {
-      await supabase.from('transactions').insert(rows);
+    try {
+      const { data: existing } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('user_id', user.id);
+      const existingIds = new Set(existing?.map(t => t.id) || []);
+      
+      for (const t of newTransactions) {
+        const idStr = String(t.id);
+        if (isUUID(t.id) && existingIds.has(idStr)) {
+          await supabase.from('transactions')
+            .update({ type: t.type, amount: t.amount, category: t.category, description: t.description, date: t.date })
+            .eq('id', idStr);
+        } else if (!isUUID(t.id)) {
+          await supabase.from('transactions').insert({
+            user_id: user.id,
+            type: t.type,
+            amount: t.amount,
+            category: t.category,
+            description: t.description,
+            date: t.date
+          });
+        }
+      }
+      
+      // Delete removed
+      const newIds = newTransactions.filter(t => isUUID(t.id)).map(t => String(t.id));
+      const toDelete = existing?.filter(t => !newIds.includes(t.id)) || [];
+      for (const t of toDelete) {
+        await supabase.from('transactions').delete().eq('id', t.id);
+      }
+      
+      await loadData();
+    } catch (error) {
+      console.error('Error syncing transactions:', error);
     }
   };
 
@@ -353,18 +412,41 @@ export function useSupabaseData() {
     const newEntries = typeof updater === 'function' ? updater(journalEntries) : updater;
     setJournalEntriesState(newEntries);
     
-    await supabase.from('journal_entries').delete().eq('user_id', user.id);
-    const rows = newEntries.map(j => ({
-      user_id: user.id,
-      date: j.date,
-      mood: j.mood,
-      win: j.win,
-      improve: j.improve,
-      thoughts: j.thoughts,
-      tags: j.tags
-    }));
-    if (rows.length > 0) {
-      await supabase.from('journal_entries').insert(rows);
+    try {
+      const { data: existing } = await supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('user_id', user.id);
+      const existingIds = new Set(existing?.map(j => j.id) || []);
+      
+      for (const j of newEntries) {
+        const idStr = String(j.id);
+        if (isUUID(j.id) && existingIds.has(idStr)) {
+          await supabase.from('journal_entries')
+            .update({ date: j.date, mood: j.mood, win: j.win, improve: j.improve, thoughts: j.thoughts, tags: j.tags })
+            .eq('id', idStr);
+        } else if (!isUUID(j.id)) {
+          await supabase.from('journal_entries').insert({
+            user_id: user.id,
+            date: j.date,
+            mood: j.mood,
+            win: j.win,
+            improve: j.improve,
+            thoughts: j.thoughts,
+            tags: j.tags
+          });
+        }
+      }
+      
+      const newIds = newEntries.filter(j => isUUID(j.id)).map(j => String(j.id));
+      const toDelete = existing?.filter(j => !newIds.includes(j.id)) || [];
+      for (const j of toDelete) {
+        await supabase.from('journal_entries').delete().eq('id', j.id);
+      }
+      
+      await loadData();
+    } catch (error) {
+      console.error('Error syncing journal:', error);
     }
   };
 
@@ -374,14 +456,30 @@ export function useSupabaseData() {
     const newBudgets = typeof updater === 'function' ? updater(budgets) : updater;
     setBudgetsState(newBudgets);
     
-    await supabase.from('budgets').delete().eq('user_id', user.id);
-    const rows = Object.entries(newBudgets).map(([category, amount]) => ({
-      user_id: user.id,
-      category,
-      amount
-    }));
-    if (rows.length > 0) {
-      await supabase.from('budgets').insert(rows);
+    try {
+      // Upsert each budget category
+      for (const [category, amount] of Object.entries(newBudgets)) {
+        const { data: existing } = await supabase
+          .from('budgets')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('category', category)
+          .maybeSingle();
+        
+        if (existing) {
+          await supabase.from('budgets')
+            .update({ amount })
+            .eq('id', existing.id);
+        } else {
+          await supabase.from('budgets').insert({
+            user_id: user.id,
+            category,
+            amount
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing budgets:', error);
     }
   };
 
@@ -391,10 +489,27 @@ export function useSupabaseData() {
     const newCategories = typeof updater === 'function' ? updater(categories) : updater;
     setCategoriesState(newCategories);
     
-    await supabase.from('categories').delete().eq('user_id', user.id);
-    const rows = newCategories.map(name => ({ user_id: user.id, name }));
-    if (rows.length > 0) {
-      await supabase.from('categories').insert(rows);
+    try {
+      const { data: existing } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('user_id', user.id);
+      const existingNames = new Set(existing?.map(c => c.name) || []);
+      
+      // Add new categories
+      for (const name of newCategories) {
+        if (!existingNames.has(name)) {
+          await supabase.from('categories').insert({ user_id: user.id, name });
+        }
+      }
+      
+      // Delete removed categories
+      const toDelete = existing?.filter(c => !newCategories.includes(c.name)) || [];
+      for (const c of toDelete) {
+        await supabase.from('categories').delete().eq('id', c.id);
+      }
+    } catch (error) {
+      console.error('Error syncing categories:', error);
     }
   };
 
@@ -404,14 +519,37 @@ export function useSupabaseData() {
     const newSubs = typeof updater === 'function' ? updater(subscriptions) : updater;
     setSubscriptionsState(newSubs);
     
-    await supabase.from('subscriptions').delete().eq('user_id', user.id);
-    const rows = newSubs.map(s => ({
-      user_id: user.id,
-      name: s.name,
-      amount: s.amount
-    }));
-    if (rows.length > 0) {
-      await supabase.from('subscriptions').insert(rows);
+    try {
+      const { data: existing } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('user_id', user.id);
+      const existingIds = new Set(existing?.map(s => s.id) || []);
+      
+      for (const s of newSubs) {
+        const idStr = String(s.id);
+        if (isUUID(s.id) && existingIds.has(idStr)) {
+          await supabase.from('subscriptions')
+            .update({ name: s.name, amount: s.amount })
+            .eq('id', idStr);
+        } else if (!isUUID(s.id)) {
+          await supabase.from('subscriptions').insert({
+            user_id: user.id,
+            name: s.name,
+            amount: s.amount
+          });
+        }
+      }
+      
+      const newIds = newSubs.filter(s => isUUID(s.id)).map(s => String(s.id));
+      const toDelete = existing?.filter(s => !newIds.includes(s.id)) || [];
+      for (const s of toDelete) {
+        await supabase.from('subscriptions').delete().eq('id', s.id);
+      }
+      
+      await loadData();
+    } catch (error) {
+      console.error('Error syncing subscriptions:', error);
     }
   };
 

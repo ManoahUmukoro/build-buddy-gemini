@@ -20,8 +20,8 @@ interface JournalTabProps {
     improve: string;
     thoughts: string;
   }>>;
-  editingEntryId: number | null;
-  setEditingEntryId: (id: number | null) => void;
+  editingEntryId: string | number | null;
+  setEditingEntryId: (id: string | number | null) => void;
   isSavingJournal: boolean;
   journalChatHistory: ChatMessage[];
   onSaveJournal: (e: React.FormEvent) => void;

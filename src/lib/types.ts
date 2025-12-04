@@ -1,5 +1,5 @@
 export interface Task {
-  id: number;
+  id: string | number;
   text: string;
   done: boolean;
 }
@@ -9,20 +9,20 @@ export interface Tasks {
 }
 
 export interface Habit {
-  id: number;
+  id: string | number;
   name: string;
   completed: { [key: string]: boolean };
 }
 
 export interface System {
-  id: number;
+  id: string | number;
   goal: string;
   why: string;
   habits: Habit[];
 }
 
 export interface Transaction {
-  id: number;
+  id: string | number;
   type: 'income' | 'expense';
   amount: number;
   category: string;
@@ -31,13 +31,13 @@ export interface Transaction {
 }
 
 export interface Subscription {
-  id: number;
+  id: string | number;
   name: string;
   amount: number;
 }
 
 export interface JournalEntry {
-  id: number;
+  id: string | number;
   date: string;
   mood: number;
   win: string;

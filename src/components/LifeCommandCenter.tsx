@@ -47,7 +47,7 @@ export default function LifeCommandCenter() {
   
   // Local UI State
   const [sortingDay, setSortingDay] = useState<string | null>(null);
-  const [breakingDownTask, setBreakingDownTask] = useState<number | null>(null);
+  const [breakingDownTask, setBreakingDownTask] = useState<string | number | null>(null);
   const [currency, setCurrency] = useState('₦');
   const [newTransaction, setNewTransaction] = useState({
     type: 'expense' as 'income' | 'expense',
@@ -56,14 +56,14 @@ export default function LifeCommandCenter() {
     description: '',
     date: new Date().toISOString().split('T')[0]
   });
-  const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | number | null>(null);
   const [financeAnalysis, setFinanceAnalysis] = useState("");
   const [isAnalyzingFinance, setIsAnalyzingFinance] = useState(false);
   const [financeChatHistory, setFinanceChatHistory] = useState<ChatMessage[]>([]);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
   const [todayEntry, setTodayEntry] = useState({ mood: 3, win: '', improve: '', thoughts: '' });
-  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingEntryId, setEditingEntryId] = useState<string | number | null>(null);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [journalChatHistory, setJournalChatHistory] = useState<ChatMessage[]>([]);
   const welcomeMessage = profile?.display_name ? `Welcome, ${profile.display_name}!` : "Ready to conquer the day?";
@@ -156,7 +156,7 @@ export default function LifeCommandCenter() {
     setSortingDay(null);
   };
 
-  const handleBreakdownTask = async (day: string, taskId: number, taskText: string) => {
+  const handleBreakdownTask = async (day: string, taskId: string | number, taskText: string) => {
     setBreakingDownTask(taskId);
     
     const subtasks = await ai.breakdownTask(taskText);
@@ -168,7 +168,7 @@ export default function LifeCommandCenter() {
       }));
       setTasks(prev => {
         const currentDayTasks = prev[day] || [];
-        const taskIndex = currentDayTasks.findIndex(t => t.id === taskId);
+        const taskIndex = currentDayTasks.findIndex(t => String(t.id) === String(taskId));
         if (taskIndex === -1) return prev;
         const newTasks = [...currentDayTasks.slice(0, taskIndex + 1), ...newSubtasks, ...currentDayTasks.slice(taskIndex + 1)];
         return { ...prev, [day]: newTasks };
@@ -347,28 +347,28 @@ export default function LifeCommandCenter() {
         await setSystems(prev => [...prev, { id: Date.now(), goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
         break;
       case 'editSystem':
-        await setSystems(prev => prev.map(s => s.id === modalConfig.data ? { ...s, goal: inputValue, why: inputWhy } : s));
+        await setSystems(prev => prev.map(s => String(s.id) === String(modalConfig.data) ? { ...s, goal: inputValue, why: inputWhy } : s));
         break;
       case 'deleteSystem':
-        await setSystems(prev => prev.filter(s => s.id !== modalConfig.data));
+        await setSystems(prev => prev.filter(s => String(s.id) !== String(modalConfig.data)));
         break;
       case 'addHabitToSystem':
-        await setSystems(prev => prev.map(s => s.id === modalConfig.data 
+        await setSystems(prev => prev.map(s => String(s.id) === String(modalConfig.data) 
           ? { ...s, habits: [...s.habits, { id: Date.now(), name: inputValue, completed: {} }] } 
           : s
         ));
         break;
       case 'editHabit':
         const { systemId: editSysId, habitId: editHabId } = modalConfig.data;
-        await setSystems(prev => prev.map(s => s.id === editSysId 
-          ? { ...s, habits: s.habits.map(h => h.id === editHabId ? { ...h, name: inputValue } : h) } 
+        await setSystems(prev => prev.map(s => String(s.id) === String(editSysId) 
+          ? { ...s, habits: s.habits.map(h => String(h.id) === String(editHabId) ? { ...h, name: inputValue } : h) } 
           : s
         ));
         break;
       case 'deleteHabit':
         const { systemId: delSysId, habitId: delHabId } = modalConfig.data;
-        await setSystems(prev => prev.map(s => s.id === delSysId 
-          ? { ...s, habits: s.habits.filter(h => h.id !== delHabId) } 
+        await setSystems(prev => prev.map(s => String(s.id) === String(delSysId) 
+          ? { ...s, habits: s.habits.filter(h => String(h.id) !== String(delHabId)) } 
           : s
         ));
         break;
@@ -382,7 +382,7 @@ export default function LifeCommandCenter() {
             name: h.name || h,
             completed: {}
           }));
-          await setSystems(prev => prev.map(s => s.id === systemId ? { ...s, habits: [...s.habits, ...newHabits] } : s));
+          await setSystems(prev => prev.map(s => String(s.id) === String(systemId) ? { ...s, habits: [...s.habits, ...newHabits] } : s));
         }
         setIsGenerating(false);
         closeModal();
@@ -394,8 +394,8 @@ export default function LifeCommandCenter() {
         await setCategories(prev => [...prev, inputValue]);
         break;
       case 'deleteTransaction':
-        await setTransactions(prev => prev.filter(tr => tr.id !== modalConfig.data));
-        if (editingTransactionId === modalConfig.data) {
+        await setTransactions(prev => prev.filter(tr => String(tr.id) !== String(modalConfig.data)));
+        if (String(editingTransactionId) === String(modalConfig.data)) {
           setEditingTransactionId(null);
           setNewTransaction({ type: 'expense', amount: '', category: categories[0], description: '', date: new Date().toISOString().split('T')[0] });
         }
@@ -412,10 +412,10 @@ export default function LifeCommandCenter() {
         const editPotentialAmount = parseFloat(editParts[editParts.length - 1]);
         const editName = isNaN(editPotentialAmount) ? inputValue : editParts.slice(0, -1).join(' ');
         const editAmount = isNaN(editPotentialAmount) ? 0 : editPotentialAmount;
-        await setSubscriptions(prev => prev.map(s => s.id === modalConfig.data?.id ? { ...s, name: editName, amount: editAmount } : s));
+        await setSubscriptions(prev => prev.map(s => String(s.id) === String(modalConfig.data?.id) ? { ...s, name: editName, amount: editAmount } : s));
         break;
       case 'deleteSubscription':
-        await setSubscriptions(prev => prev.filter(s => s.id !== modalConfig.data));
+        await setSubscriptions(prev => prev.filter(s => String(s.id) !== String(modalConfig.data)));
         break;
     }
     closeModal();
