@@ -200,53 +200,79 @@ export function useSupabaseData() {
   const setSystems = async (updater: System[] | ((prev: System[]) => System[])) => {
     if (!user) return;
     const newSystems = typeof updater === 'function' ? updater(systems) : updater;
-    setSystemsState(newSystems);
+    
+    // Track ID mappings for new items
+    const systemIdMap: Record<number, string> = {};
+    const habitIdMap: Record<number, string> = {};
+    
+    // Get existing system IDs from database
+    const { data: existingDbSystems } = await supabase
+      .from('systems')
+      .select('id')
+      .eq('user_id', user.id);
+    const existingSystemIds = new Set(existingDbSystems?.map(s => s.id) || []);
+    
+    // Get existing habit IDs from database  
+    const { data: existingDbHabits } = await supabase
+      .from('habits')
+      .select('id')
+      .eq('user_id', user.id);
+    const existingHabitIds = new Set(existingDbHabits?.map(h => h.id) || []);
     
     // Sync systems
     for (const system of newSystems) {
-      const { data: existingSystem } = await supabase
-        .from('systems')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('id', String(system.id))
-        .maybeSingle();
+      const systemIdStr = String(system.id);
+      const isExistingSystem = existingSystemIds.has(systemIdStr);
 
-      if (!existingSystem) {
-        await supabase.from('systems').insert({
+      if (!isExistingSystem) {
+        // Insert new system and get the UUID back
+        const { data: insertedSystem } = await supabase.from('systems').insert({
           user_id: user.id,
           goal: system.goal,
           why: system.why
-        });
+        }).select('id').single();
+        
+        if (insertedSystem) {
+          systemIdMap[system.id as number] = insertedSystem.id;
+        }
       } else {
         await supabase.from('systems')
           .update({ goal: system.goal, why: system.why })
-          .eq('id', String(system.id));
+          .eq('id', systemIdStr);
+        systemIdMap[system.id as number] = systemIdStr;
       }
+
+      const actualSystemId = systemIdMap[system.id as number] || systemIdStr;
 
       // Sync habits
       for (const habit of system.habits) {
-        const { data: existingHabit } = await supabase
-          .from('habits')
-          .select('id')
-          .eq('id', String(habit.id))
-          .maybeSingle();
+        const habitIdStr = String(habit.id);
+        const isExistingHabit = existingHabitIds.has(habitIdStr);
 
-        if (!existingHabit) {
-          await supabase.from('habits').insert({
+        if (!isExistingHabit) {
+          // Insert new habit and get the UUID back
+          const { data: insertedHabit } = await supabase.from('habits').insert({
             user_id: user.id,
-            system_id: String(system.id),
+            system_id: actualSystemId,
             name: habit.name
-          });
+          }).select('id').single();
+          
+          if (insertedHabit) {
+            habitIdMap[habit.id as number] = insertedHabit.id;
+          }
         } else {
           await supabase.from('habits')
-            .update({ name: habit.name })
-            .eq('id', String(habit.id));
+            .update({ name: habit.name, system_id: actualSystemId })
+            .eq('id', habitIdStr);
+          habitIdMap[habit.id as number] = habitIdStr;
         }
+
+        const actualHabitId = habitIdMap[habit.id as number] || habitIdStr;
 
         // Sync completions
         for (const [date, completed] of Object.entries(habit.completed)) {
           await supabase.from('habit_completions').upsert({
-            habit_id: String(habit.id),
+            habit_id: actualHabitId,
             user_id: user.id,
             date,
             completed
@@ -255,17 +281,24 @@ export function useSupabaseData() {
       }
     }
 
-    // Delete removed systems
-    const systemIds = newSystems.map(s => String(s.id));
-    const { data: existingSystems } = await supabase
-      .from('systems')
-      .select('id')
-      .eq('user_id', user.id);
-    
-    const removedSystems = existingSystems?.filter(s => !systemIds.includes(s.id)) || [];
+    // Delete removed systems (cascade will handle habits)
+    const newSystemIds = newSystems.map(s => systemIdMap[s.id as number] || String(s.id));
+    const removedSystems = existingDbSystems?.filter(s => !newSystemIds.includes(s.id)) || [];
     for (const removed of removedSystems) {
       await supabase.from('systems').delete().eq('id', removed.id);
     }
+    
+    // Delete removed habits
+    const allNewHabitIds = newSystems.flatMap(s => s.habits.map(h => habitIdMap[h.id as number] || String(h.id)));
+    const removedHabits = existingDbHabits?.filter(h => !allNewHabitIds.includes(h.id)) || [];
+    for (const removed of removedHabits) {
+      await supabase.from('habits').delete().eq('id', removed.id);
+    }
+
+    // Update local state and reload to get proper UUIDs
+    setSystemsState(newSystems);
+    // Reload data to sync IDs
+    setTimeout(() => loadData(), 100);
   };
 
   // Transaction operations
