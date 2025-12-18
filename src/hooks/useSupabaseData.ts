@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { Tasks, System, Transaction, JournalEntry, Budget, Subscription } from '@/lib/types';
+import { Tasks, System, Transaction, JournalEntry, Budget, Subscription, SavingsGoal } from '@/lib/types';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { toast } from 'sonner';
 import { SaveStatus } from '@/components/SaveIndicator';
@@ -42,6 +42,7 @@ export function useSupabaseData() {
   const [budgets, setBudgetsState] = useState<Budget>({});
   const [categories, setCategoriesState] = useState<string[]>(DEFAULT_CATEGORIES);
   const [subscriptions, setSubscriptionsState] = useState<Subscription[]>([]);
+  const [savingsGoals, setSavingsGoalsState] = useState<SavingsGoal[]>([]);
   const [geminiApiKey, setGeminiApiKeyState] = useState<string>('');
 
   // Load all data
@@ -173,6 +174,21 @@ export function useSupabaseData() {
           id: s.id,
           name: s.name,
           amount: Number(s.amount)
+        })));
+      }
+
+      // Load savings goals
+      const { data: savingsData } = await supabase
+        .from('savings_goals')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (savingsData) {
+        setSavingsGoalsState(savingsData.map(s => ({
+          id: s.id,
+          name: s.name,
+          target: Number(s.target),
+          current: Number(s.current)
         })));
       }
 
@@ -571,6 +587,45 @@ export function useSupabaseData() {
     });
   };
 
+  // Savings goals operations
+  const setSavingsGoals = async (updater: SavingsGoal[] | ((prev: SavingsGoal[]) => SavingsGoal[])) => {
+    if (!user) return;
+    const newGoals = typeof updater === 'function' ? updater(savingsGoals) : updater;
+    setSavingsGoalsState(newGoals);
+    
+    await withSaveStatus(async () => {
+      const { data: existing } = await supabase
+        .from('savings_goals')
+        .select('id')
+        .eq('user_id', user.id);
+      const existingIds = new Set(existing?.map(s => s.id) || []);
+      
+      for (const s of newGoals) {
+        const idStr = String(s.id);
+        if (isUUID(s.id) && existingIds.has(idStr)) {
+          await supabase.from('savings_goals')
+            .update({ name: s.name, target: s.target, current: s.current })
+            .eq('id', idStr);
+        } else if (!isUUID(s.id)) {
+          await supabase.from('savings_goals').insert({
+            user_id: user.id,
+            name: s.name,
+            target: s.target,
+            current: s.current
+          });
+        }
+      }
+      
+      const newIds = newGoals.filter(s => isUUID(s.id)).map(s => String(s.id));
+      const toDelete = existing?.filter(s => !newIds.includes(s.id)) || [];
+      for (const s of toDelete) {
+        await supabase.from('savings_goals').delete().eq('id', s.id);
+      }
+      
+      await loadData();
+    });
+  };
+
   return {
     saveStatus,
     loading,
@@ -581,6 +636,7 @@ export function useSupabaseData() {
     budgets, setBudgets,
     categories, setCategories,
     subscriptions, setSubscriptions,
+    savingsGoals, setSavingsGoals,
     geminiApiKey, setGeminiApiKey,
     refreshData: loadData
   };

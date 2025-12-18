@@ -38,6 +38,7 @@ export default function LifeCommandCenter() {
     budgets, setBudgets,
     categories, setCategories,
     subscriptions, setSubscriptions,
+    savingsGoals, setSavingsGoals,
     geminiApiKey, setGeminiApiKey
   } = useSupabaseData();
   
@@ -551,7 +552,10 @@ export default function LifeCommandCenter() {
                 setTransactions={setTransactions}
                 subscriptions={subscriptions}
                 setSubscriptions={setSubscriptions}
+                savingsGoals={savingsGoals}
+                setSavingsGoals={setSavingsGoals}
                 budgets={budgets}
+                setBudgets={setBudgets}
                 categories={categories}
                 currency={currency}
                 setCurrency={setCurrency}
@@ -575,6 +579,7 @@ export default function LifeCommandCenter() {
                 setNewTransaction={setNewTransaction}
                 editingTransactionId={editingTransactionId}
                 setEditingTransactionId={setEditingTransactionId}
+                currentMonthIncome={currentMonthIncome}
               />
             )}
             

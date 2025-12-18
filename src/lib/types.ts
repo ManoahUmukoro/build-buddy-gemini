@@ -2,6 +2,8 @@ export interface Task {
   id: string | number;
   text: string;
   done: boolean;
+  time?: string;
+  alerted?: boolean;
 }
 
 export interface Tasks {
@@ -36,6 +38,13 @@ export interface Subscription {
   amount: number;
 }
 
+export interface SavingsGoal {
+  id: string | number;
+  name: string;
+  target: number;
+  current: number;
+}
+
 export interface JournalEntry {
   id: string | number;
   date: string;
@@ -55,7 +64,12 @@ export interface ChatMessage {
   text: string;
 }
 
-export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'settings';
+export interface AlertItem {
+  time: string;
+  text: string;
+}
+
+export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'help' | 'settings';
 
 export interface ModalConfig {
   isOpen: boolean;
