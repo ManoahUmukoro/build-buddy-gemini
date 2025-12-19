@@ -240,34 +240,37 @@ export default function AdminBilling() {
         </div>
 
         <Tabs defaultValue="providers">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="providers" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-2 h-auto">
+            <TabsTrigger value="providers" className="flex items-center gap-2 py-2">
               <CreditCard className="h-4 w-4" />
-              Payment Providers
+              <span className="hidden sm:inline">Payment</span>
+              <span className="sm:hidden">Pay</span>
             </TabsTrigger>
-            <TabsTrigger value="plans" className="flex items-center gap-2">
+            <TabsTrigger value="plans" className="flex items-center gap-2 py-2">
               <Package className="h-4 w-4" />
-              Subscription Plans
+              <span className="hidden sm:inline">Plans</span>
+              <span className="sm:hidden">Plans</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="providers" className="space-y-4">
             <div className="flex justify-end">
-              <Button onClick={saveProviders} disabled={saving}>
+              <Button onClick={saveProviders} disabled={saving} size="sm">
                 {saving ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Save className="h-4 w-4 mr-2" />
                 )}
-                Save Providers
+                <span className="hidden sm:inline">Save Providers</span>
+                <span className="sm:hidden">Save</span>
               </Button>
             </div>
 
             <Tabs defaultValue="paystack">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="paystack">Paystack</TabsTrigger>
-                <TabsTrigger value="flutterwave">Flutterwave</TabsTrigger>
-                <TabsTrigger value="stripe">Stripe</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-auto">
+                <TabsTrigger value="paystack" className="text-xs sm:text-sm py-2">Paystack</TabsTrigger>
+                <TabsTrigger value="flutterwave" className="text-xs sm:text-sm py-2">Flutterwave</TabsTrigger>
+                <TabsTrigger value="stripe" className="text-xs sm:text-sm py-2">Stripe</TabsTrigger>
               </TabsList>
 
               <TabsContent value="paystack">
@@ -527,39 +530,75 @@ export default function AdminBilling() {
                     No subscription plans yet. Create your first plan to get started.
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Plan</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Features</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <>
+                    {/* Desktop Table */}
+                    <div className="hidden md:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Plan</TableHead>
+                            <TableHead>Price</TableHead>
+                            <TableHead>Features</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {plans.map((plan) => (
+                            <TableRow key={plan.id}>
+                              <TableCell className="font-medium">{plan.name}</TableCell>
+                              <TableCell>
+                                {plan.price === 0 ? 'Free' : `${plan.currency} ${plan.price.toLocaleString()}/${plan.interval}`}
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-xs text-muted-foreground max-w-[200px] truncate">
+                                  {plan.features.slice(0, 2).join(', ')}
+                                  {plan.features.length > 2 && ` +${plan.features.length - 2} more`}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={plan.is_active ? 'default' : 'secondary'}>
+                                  {plan.is_active ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditPlan(plan);
+                                      setPlanDialogOpen(true);
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => deletePlan(plan.id)}
+                                    disabled={plan.id === 'free'}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
                       {plans.map((plan) => (
-                        <TableRow key={plan.id}>
-                          <TableCell className="font-medium">{plan.name}</TableCell>
-                          <TableCell>
-                            {plan.price === 0 ? 'Free' : `${plan.currency} ${plan.price.toLocaleString()}/${plan.interval}`}
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs text-muted-foreground max-w-[200px] truncate">
-                              {plan.features.slice(0, 2).join(', ')}
-                              {plan.features.length > 2 && ` +${plan.features.length - 2} more`}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={plan.is_active ? 'default' : 'secondary'}>
-                              {plan.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
+                        <div key={plan.id} className="p-4 bg-muted/50 rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{plan.name}</div>
+                            <div className="flex gap-1">
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={() => {
                                   setEditPlan(plan);
                                   setPlanDialogOpen(true);
@@ -569,18 +608,29 @@ export default function AdminBilling() {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={() => deletePlan(plan.id)}
                                 disabled={plan.id === 'free'}
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {plan.price === 0 ? 'Free' : `${plan.currency} ${plan.price.toLocaleString()}/${plan.interval}`}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={plan.is_active ? 'default' : 'secondary'} className="text-xs">
+                              {plan.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {plan.features.length} features
+                            </span>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
