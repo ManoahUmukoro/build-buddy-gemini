@@ -592,11 +592,8 @@ export function FinanceTab({
                   <div key={goal.id} className="bg-primary/5 p-6 rounded-xl border border-primary/20 relative group overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
                     <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div>
+                      <div className="flex-1">
                         <h4 className="font-bold text-xl text-card-foreground">{goal.name}</h4>
-                        <p className="text-sm text-primary/70 font-medium mt-1">
-                          Target: {formatCurrency(goal.target, currency)}
-                        </p>
                       </div>
                       <div className="flex gap-2">
                         <button 
@@ -614,9 +611,21 @@ export function FinanceTab({
                       </div>
                     </div>
                     
-                    <div className="relative pt-4">
+                    {/* Separate columns for Target and Current Balance */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-card p-3 rounded-lg border border-border">
+                        <p className="text-xs text-muted-foreground mb-1">Target Amount</p>
+                        <p className="text-lg font-bold text-card-foreground">{formatCurrency(goal.target, currency)}</p>
+                      </div>
+                      <div className="bg-card p-3 rounded-lg border border-border">
+                        <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
+                        <p className="text-lg font-bold text-success">{formatCurrency(goal.current, currency)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="relative">
                       <div className="flex justify-between text-sm font-bold text-card-foreground mb-2">
-                        <span>{formatCurrency(goal.current, currency)} Saved</span>
+                        <span>Progress</span>
                         <span>{pct.toFixed(0)}%</span>
                       </div>
                       <div className="h-4 bg-card rounded-full overflow-hidden border border-primary/10 shadow-inner">
