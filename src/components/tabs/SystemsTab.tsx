@@ -44,7 +44,7 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
       </div>
 
       {systems.map((system, sysIdx) => (
-        <div key={`${system.id}-${sysIdx}`} className="bg-card rounded-xl shadow-soft border border-border overflow-hidden">
+        <div key={`${system.id}-${sysIdx}`} className="bg-card rounded-xl shadow-soft border border-border overflow-hidden min-h-[200px]">
           <div className="bg-muted p-3 md:p-4 border-b border-border">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div className="flex-1 min-w-0">
