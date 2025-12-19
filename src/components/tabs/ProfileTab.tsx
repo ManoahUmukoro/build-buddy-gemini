@@ -50,8 +50,13 @@ interface PaymentRecord {
 }
 
 export function ProfileTab() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const { isAdmin } = useAdminAuth();
   const { profile, loading: profileLoading } = useProfile();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [userPlan, setUserPlan] = useState<{ plan: string; status: string } | null>(null);
@@ -137,6 +142,16 @@ export function ProfileTab() {
 
     fetchPaymentHistory();
   }, [user]);
+
+  // Load avatar from localStorage
+  useEffect(() => {
+    if (user?.id) {
+      const savedAvatar = localStorage.getItem(`avatar_${user.id}`);
+      setAvatarUrl(savedAvatar);
+    } else {
+      setAvatarUrl(null);
+    }
+  }, [user?.id]);
 
   async function handleSaveProfile() {
     if (!user) return;
@@ -311,11 +326,6 @@ export function ProfileTab() {
     );
   }
 
-  const { isAdmin } = useAdminAuth();
-  const { signOut } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
   const handleSignOut = async () => {
     await signOut();
     toast.success('Signed out successfully');
@@ -339,14 +349,6 @@ export function ProfileTab() {
     };
     reader.readAsDataURL(file);
   };
-
-  // Load avatar from localStorage
-  useEffect(() => {
-    if (user?.id) {
-      const savedAvatar = localStorage.getItem(`avatar_${user.id}`);
-      if (savedAvatar) setAvatarUrl(savedAvatar);
-    }
-  }, [user?.id]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-24 md:pb-0">
