@@ -1,13 +1,19 @@
 import React from 'react';
 
+// Exchange rate: NGN to USD (approximate)
+const NGN_TO_USD_RATE = 1600;
+
 export function formatCurrency(amount: number, currencySymbol: string = '₦'): string {
   const num = parseFloat(String(amount));
   if (isNaN(num)) return `${currencySymbol}0.00`;
   
-  const formatted = new Intl.NumberFormat('en-NG', {
+  // Convert if showing in dollars
+  const displayAmount = currencySymbol === '$' ? num / NGN_TO_USD_RATE : num;
+  
+  const formatted = new Intl.NumberFormat(currencySymbol === '$' ? 'en-US' : 'en-NG', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Math.abs(num));
+  }).format(Math.abs(displayAmount));
   
   return `${currencySymbol}${formatted}`;
 }

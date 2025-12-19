@@ -110,6 +110,8 @@
     @apply bg-background text-foreground font-sans antialiased overflow-x-hidden;
     font-family: 'Inter', system-ui, sans-serif;
     max-width: 100vw;
+    min-height: 100vh;
+    height: 100%;
   }
 
   /* Scrollbar styling */
