@@ -220,13 +220,13 @@ export default function AdminSettings() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">App Settings</h1>
-            <p className="text-muted-foreground">Configure application features, maintenance, and notifications</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">App Settings</h1>
+            <p className="text-sm text-muted-foreground">Configure features, maintenance, and notifications</p>
           </div>
-          <Button onClick={saveSettings} disabled={saving}>
+          <Button onClick={saveSettings} disabled={saving} className="w-full sm:w-auto">
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
@@ -236,27 +236,27 @@ export default function AdminSettings() {
           </Button>
         </div>
 
-        <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
-            <TabsTrigger value="general" className="flex items-center gap-2">
+        <Tabs defaultValue="general" className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto gap-1 p-1">
+            <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">General</span>
+              <span className="hidden xs:inline sm:inline">General</span>
             </TabsTrigger>
-            <TabsTrigger value="modules" className="flex items-center gap-2">
+            <TabsTrigger value="modules" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <ToggleLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Modules</span>
+              <span className="hidden xs:inline sm:inline">Modules</span>
             </TabsTrigger>
-            <TabsTrigger value="features" className="flex items-center gap-2">
+            <TabsTrigger value="features" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Features</span>
+              <span className="hidden xs:inline sm:inline">Features</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <TabsTrigger value="notifications" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Notifications</span>
+              <span className="hidden xs:inline sm:inline">Alerts</span>
             </TabsTrigger>
-            <TabsTrigger value="announcements" className="flex items-center gap-2">
+            <TabsTrigger value="announcements" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm col-span-3 sm:col-span-1">
               <Megaphone className="h-4 w-4" />
-              <span className="hidden sm:inline">Announcements</span>
+              <span>Announce</span>
             </TabsTrigger>
           </TabsList>
 
@@ -432,30 +432,27 @@ export default function AdminSettings() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Active Announcements</CardTitle>
+                  <CardTitle className="text-base sm:text-lg">Active Announcements</CardTitle>
                   <CardDescription>Manage existing announcements</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Message</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {announcements.map((ann) => (
-                        <TableRow key={ann.id}>
-                          <TableCell className="font-medium">{ann.title}</TableCell>
-                          <TableCell className="max-w-xs truncate">{ann.message}</TableCell>
-                          <TableCell>
-                            <Badge variant={ann.is_active ? 'default' : 'secondary'}>
-                              {ann.is_active ? 'Active' : 'Inactive'}
+                  {/* Mobile Card View */}
+                  <div className="block sm:hidden space-y-3">
+                    {announcements.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-6">No announcements yet.</p>
+                    ) : (
+                      announcements.map((ann) => (
+                        <div key={ann.id} className="bg-muted/50 rounded-lg p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{ann.title}</p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{ann.message}</p>
+                            </div>
+                            <Badge variant={ann.is_active ? 'default' : 'secondary'} className="flex-shrink-0 text-xs">
+                              {ann.is_active ? 'Active' : 'Off'}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-right space-x-2">
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-border">
                             <Switch
                               checked={ann.is_active}
                               onCheckedChange={(checked) => toggleAnnouncement(ann.id, checked)}
@@ -467,18 +464,58 @@ export default function AdminSettings() {
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {announcements.length === 0 && (
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                            No announcements yet. Add one above.
-                          </TableCell>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Message</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {announcements.map((ann) => (
+                          <TableRow key={ann.id}>
+                            <TableCell className="font-medium">{ann.title}</TableCell>
+                            <TableCell className="max-w-xs truncate">{ann.message}</TableCell>
+                            <TableCell>
+                              <Badge variant={ann.is_active ? 'default' : 'secondary'}>
+                                {ann.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <Switch
+                                checked={ann.is_active}
+                                onCheckedChange={(checked) => toggleAnnouncement(ann.id, checked)}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteAnnouncement(ann.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {announcements.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No announcements yet. Add one above.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             </div>
