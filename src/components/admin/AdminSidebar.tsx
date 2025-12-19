@@ -23,7 +23,7 @@ const navItems = [
 
 export function AdminSidebar() {
   return (
-    <aside className="w-64 bg-card border-r border-border min-h-screen p-4 flex flex-col">
+    <aside className="w-64 bg-card border-r border-border h-screen p-4 flex flex-col sticky top-0">
       <div className="mb-8">
         <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
         <p className="text-sm text-muted-foreground">LifeOS Management</p>
