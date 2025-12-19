@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,18 @@ interface TaskReminderRequest {
   taskText: string;
   taskTime: string;
   userEmail: string;
+  userName?: string;
+}
+
+/**
+ * Replaces template variables with actual values
+ */
+function replaceVariables(template: string, variables: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+  }
+  return result;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -18,16 +31,19 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     if (!resendApiKey) {
-      console.log("RESEND_API_KEY not configured, skipping email notification");
-      return new Response(JSON.stringify({ success: true, message: "Email not configured" }), {
+      console.error("RESEND_API_KEY not configured - skipping email");
+      return new Response(JSON.stringify({ success: false, error: "Email not configured" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { taskText, taskTime, userEmail }: TaskReminderRequest = await req.json();
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { taskText, taskTime, userEmail, userName }: TaskReminderRequest = await req.json();
 
     if (!userEmail) {
       return new Response(JSON.stringify({ error: "No email provided" }), {
@@ -36,7 +52,76 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Use Resend API directly via fetch
+    // Check if task reminders are enabled in admin settings
+    const { data: notificationSettings, error: notifError } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'notifications')
+      .single();
+
+    if (notifError) {
+      console.error("Error fetching notification settings:", notifError);
+    }
+
+    const notifications = notificationSettings?.value || {};
+    if (notifications.email_enabled === false || notifications.task_reminders === false) {
+      console.log("Task reminders are disabled in admin settings");
+      return new Response(JSON.stringify({ success: false, message: "Task reminders disabled" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fetch the email template from database - NO FALLBACK
+    const { data: template, error: templateError } = await supabase
+      .from('email_templates')
+      .select('subject, body, is_active')
+      .eq('slug', 'task_reminder')
+      .single();
+
+    if (templateError || !template) {
+      console.error("Email template 'task_reminder' not found in database - skipping email");
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "Email template not configured. Please add 'task_reminder' template in admin." 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!template.is_active) {
+      console.log("Task reminder template is inactive");
+      return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fetch email configuration
+    const { data: emailConfig } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'email_config')
+      .single();
+
+    const config = emailConfig?.value || {};
+    const fromEmail = config.from_email || 'onboarding@resend.dev';
+    const fromName = config.from_name || 'LifeOS';
+
+    const name = userName || userEmail.split('@')[0];
+
+    // Replace variables in template
+    const variables = {
+      name,
+      task_text: taskText,
+      task_time: taskTime,
+      email: userEmail,
+    };
+
+    const subject = replaceVariables(template.subject, variables);
+    const body = replaceVariables(template.body, variables);
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -44,50 +129,15 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "LifeOS <onboarding@resend.dev>",
+        from: `${fromName} <${fromEmail}>`,
         to: [userEmail],
-        subject: `⏰ Task Reminder: ${taskText}`,
-        html: `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f4f5; margin: 0; padding: 20px; }
-              .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
-              .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
-              .header h1 { color: white; margin: 0; font-size: 24px; }
-              .content { padding: 32px; }
-              .task-card { background: #f4f4f5; border-radius: 12px; padding: 20px; margin: 16px 0; border-left: 4px solid #6366f1; }
-              .task-title { font-size: 18px; font-weight: 600; color: #18181b; margin: 0 0 8px 0; }
-              .task-time { color: #6366f1; font-weight: 500; font-size: 14px; }
-              .footer { text-align: center; padding: 24px; color: #71717a; font-size: 12px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>⏰ Task Reminder</h1>
-              </div>
-              <div class="content">
-                <p style="color: #52525b; margin-bottom: 16px;">Hey there! This is a friendly reminder about your upcoming task:</p>
-                <div class="task-card">
-                  <p class="task-title">${taskText}</p>
-                  <p class="task-time">Scheduled for: ${taskTime}</p>
-                </div>
-                <p style="color: #52525b; margin-top: 24px;">Stay focused and crush your goals! 💪</p>
-              </div>
-              <div class="footer">
-                <p>Sent from LifeOS - Your Personal Command Center</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `,
+        subject,
+        html: body,
       }),
     });
 
     const emailResult = await emailResponse.json();
-    console.log("Email sent:", emailResult);
+    console.log("Task reminder email sent:", emailResult);
 
     return new Response(JSON.stringify({ success: true, emailResult }), {
       status: 200,
