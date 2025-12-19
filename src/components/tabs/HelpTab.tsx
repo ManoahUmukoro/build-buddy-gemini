@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { HelpCircle, ChevronDown, ChevronUp, Info, Sparkles, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { AnnouncementTicker } from '@/components/AnnouncementTicker';
 
 interface FaqItemProps {
   question: string;
@@ -72,6 +73,9 @@ export function HelpTab() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-20">
+      {/* Announcements Ticker */}
+      <AnnouncementTicker />
+
       <div className="bg-primary text-primary-foreground p-8 rounded-2xl shadow-lg mb-8">
         <h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
           <HelpCircle size={32}/> LifeOS Help Center

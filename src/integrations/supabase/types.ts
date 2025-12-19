@@ -38,6 +38,36 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          message: string
+          priority: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message: string
+          priority?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message?: string
+          priority?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number

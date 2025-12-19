@@ -4,13 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, Settings, Bell, Shield, ToggleLeft, Megaphone, Plus, Trash2 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface AppSettings {
-  onboarding_enabled: boolean;
-  ai_features_enabled: boolean;
+  maintenance_mode: boolean;
+  maintenance_message: string;
   modules: {
     dashboard: boolean;
     systems: boolean;
@@ -18,17 +29,33 @@ interface AppSettings {
     journal: boolean;
     help: boolean;
   };
-  pro_features: {
-    ai_chat: boolean;
-    advanced_analytics: boolean;
-    unlimited_entries: boolean;
+  notifications: {
+    email_enabled: boolean;
+    push_enabled: boolean;
+    task_reminders: boolean;
+    weekly_digest: boolean;
+    marketing_emails: boolean;
   };
+  features: {
+    ai_chat: boolean;
+    receipt_scanning: boolean;
+    auto_categorize: boolean;
+    habit_suggestions: boolean;
+  };
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  is_active: boolean;
+  priority: number;
 }
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState<AppSettings>({
-    onboarding_enabled: true,
-    ai_features_enabled: true,
+    maintenance_mode: false,
+    maintenance_message: 'We are currently performing maintenance. Please check back soon.',
     modules: {
       dashboard: true,
       systems: true,
@@ -36,38 +63,53 @@ export default function AdminSettings() {
       journal: true,
       help: true,
     },
-    pro_features: {
+    notifications: {
+      email_enabled: true,
+      push_enabled: true,
+      task_reminders: true,
+      weekly_digest: true,
+      marketing_emails: false,
+    },
+    features: {
       ai_chat: true,
-      advanced_analytics: true,
-      unlimited_entries: true,
+      receipt_scanning: true,
+      auto_categorize: true,
+      habit_suggestions: true,
     },
   });
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [newAnnouncement, setNewAnnouncement] = useState({ title: '', message: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchSettings();
+    fetchData();
   }, []);
 
-  async function fetchSettings() {
+  async function fetchData() {
     try {
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('key, value');
+      const [settingsRes, announcementsRes] = await Promise.all([
+        supabase.from('admin_settings').select('key, value'),
+        supabase.from('announcements').select('*').order('priority'),
+      ]);
 
-      if (error) throw error;
+      if (settingsRes.error) throw settingsRes.error;
+      if (announcementsRes.error) throw announcementsRes.error;
 
       const settingsMap: Record<string, any> = {};
-      data?.forEach(item => {
+      settingsRes.data?.forEach(item => {
         settingsMap[item.key] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
       });
 
       setSettings({
-        onboarding_enabled: settingsMap.onboarding_enabled ?? true,
-        ai_features_enabled: settingsMap.ai_features_enabled ?? true,
+        maintenance_mode: settingsMap.maintenance_mode ?? false,
+        maintenance_message: settingsMap.maintenance_message ?? 'We are currently performing maintenance.',
         modules: settingsMap.modules ?? settings.modules,
-        pro_features: settingsMap.pro_features ?? settings.pro_features,
+        notifications: settingsMap.notifications ?? settings.notifications,
+        features: settingsMap.features ?? settings.features,
       });
+
+      setAnnouncements(announcementsRes.data || []);
     } catch (err) {
       console.error('Error fetching settings:', err);
       toast.error('Failed to load settings');
@@ -81,17 +123,21 @@ export default function AdminSettings() {
       setSaving(true);
 
       const updates = [
-        { key: 'onboarding_enabled', value: settings.onboarding_enabled },
-        { key: 'ai_features_enabled', value: settings.ai_features_enabled },
+        { key: 'maintenance_mode', value: settings.maintenance_mode },
+        { key: 'maintenance_message', value: settings.maintenance_message },
         { key: 'modules', value: settings.modules },
-        { key: 'pro_features', value: settings.pro_features },
+        { key: 'notifications', value: settings.notifications },
+        { key: 'features', value: settings.features },
       ];
 
       for (const update of updates) {
         const { error } = await supabase
           .from('admin_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
+          .upsert({ 
+            key: update.key, 
+            value: JSON.parse(JSON.stringify(update.value)),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
 
         if (error) throw error;
       }
@@ -102,6 +148,63 @@ export default function AdminSettings() {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addAnnouncement() {
+    if (!newAnnouncement.title || !newAnnouncement.message) {
+      toast.error('Please fill in title and message');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .insert({
+          title: newAnnouncement.title,
+          message: newAnnouncement.message,
+          is_active: true,
+          priority: announcements.length + 1,
+        });
+
+      if (error) throw error;
+      toast.success('Announcement added');
+      setNewAnnouncement({ title: '', message: '' });
+      fetchData();
+    } catch (err) {
+      console.error('Error adding announcement:', err);
+      toast.error('Failed to add announcement');
+    }
+  }
+
+  async function toggleAnnouncement(id: string, is_active: boolean) {
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ is_active })
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchData();
+    } catch (err) {
+      console.error('Error updating announcement:', err);
+      toast.error('Failed to update announcement');
+    }
+  }
+
+  async function deleteAnnouncement(id: string) {
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Announcement deleted');
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting announcement:', err);
+      toast.error('Failed to delete announcement');
     }
   }
 
@@ -121,7 +224,7 @@ export default function AdminSettings() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">App Settings</h1>
-            <p className="text-muted-foreground">Configure application features and modules</p>
+            <p className="text-muted-foreground">Configure application features, maintenance, and notifications</p>
           </div>
           <Button onClick={saveSettings} disabled={saving}>
             {saving ? (
@@ -129,92 +232,258 @@ export default function AdminSettings() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Save Changes
+            Save All Settings
           </Button>
         </div>
 
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Control core app features</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="onboarding">User Onboarding</Label>
-                  <p className="text-sm text-muted-foreground">Show onboarding tour for new users</p>
-                </div>
-                <Switch
-                  id="onboarding"
-                  checked={settings.onboarding_enabled}
-                  onCheckedChange={(checked) => setSettings({ ...settings, onboarding_enabled: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="ai">AI Features</Label>
-                  <p className="text-sm text-muted-foreground">Enable AI command center globally</p>
-                </div>
-                <Switch
-                  id="ai"
-                  checked={settings.ai_features_enabled}
-                  onCheckedChange={(checked) => setSettings({ ...settings, ai_features_enabled: checked })}
-                />
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="general" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">General</span>
+            </TabsTrigger>
+            <TabsTrigger value="modules" className="flex items-center gap-2">
+              <ToggleLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Modules</span>
+            </TabsTrigger>
+            <TabsTrigger value="features" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              <span className="hidden sm:inline">Features</span>
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              <span className="hidden sm:inline">Notifications</span>
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4" />
+              <span className="hidden sm:inline">Announcements</span>
+            </TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Module Access</CardTitle>
-              <CardDescription>Enable or disable app modules</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(settings.modules).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <Label htmlFor={key} className="capitalize">{key}</Label>
-                  <Switch
-                    id={key}
-                    checked={value}
-                    onCheckedChange={(checked) => 
-                      setSettings({
-                        ...settings,
-                        modules: { ...settings.modules, [key]: checked }
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Pro Features</CardTitle>
-              <CardDescription>Features available only to Pro users</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(settings.pro_features).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>Maintenance Mode</CardTitle>
+                <CardDescription>Put the app in maintenance mode to block user access</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor={key} className="capitalize">{key.replace(/_/g, ' ')}</Label>
+                    <Label htmlFor="maintenance">Enable Maintenance Mode</Label>
+                    <p className="text-sm text-muted-foreground">Users will see a maintenance message instead of the app</p>
                   </div>
                   <Switch
-                    id={key}
-                    checked={value}
-                    onCheckedChange={(checked) => 
-                      setSettings({
-                        ...settings,
-                        pro_features: { ...settings.pro_features, [key]: checked }
-                      })
-                    }
+                    id="maintenance"
+                    checked={settings.maintenance_mode}
+                    onCheckedChange={(checked) => setSettings({ ...settings, maintenance_mode: checked })}
                   />
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maintenance-msg">Maintenance Message</Label>
+                  <Input
+                    id="maintenance-msg"
+                    value={settings.maintenance_message}
+                    onChange={(e) => setSettings({ ...settings, maintenance_message: e.target.value })}
+                    placeholder="We are currently performing maintenance..."
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="modules">
+            <Card>
+              <CardHeader>
+                <CardTitle>Module Access</CardTitle>
+                <CardDescription>Enable or disable app modules for all users</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(settings.modules).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor={key} className="capitalize">{key}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {key === 'dashboard' && 'Task management and weekly planner'}
+                        {key === 'systems' && 'Goals and habit tracking'}
+                        {key === 'finance' && 'Budget and expense tracking'}
+                        {key === 'journal' && 'Daily reflections and mood tracking'}
+                        {key === 'help' && 'Help center and documentation'}
+                      </p>
+                    </div>
+                    <Switch
+                      id={key}
+                      checked={value}
+                      onCheckedChange={(checked) => 
+                        setSettings({
+                          ...settings,
+                          modules: { ...settings.modules, [key]: checked }
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="features">
+            <Card>
+              <CardHeader>
+                <CardTitle>AI & Pro Features</CardTitle>
+                <CardDescription>Toggle advanced features globally</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(settings.features).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor={key} className="capitalize">{key.replace(/_/g, ' ')}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {key === 'ai_chat' && 'AI-powered chat assistant'}
+                        {key === 'receipt_scanning' && 'Scan receipts to add transactions'}
+                        {key === 'auto_categorize' && 'Auto-categorize expenses with AI'}
+                        {key === 'habit_suggestions' && 'AI habit suggestions for goals'}
+                      </p>
+                    </div>
+                    <Switch
+                      id={key}
+                      checked={value}
+                      onCheckedChange={(checked) => 
+                        setSettings({
+                          ...settings,
+                          features: { ...settings.features, [key]: checked }
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="notifications">
+            <Card>
+              <CardHeader>
+                <CardTitle>Notification Preferences</CardTitle>
+                <CardDescription>Configure default notification settings for users</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(settings.notifications).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor={key} className="capitalize">{key.replace(/_/g, ' ')}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {key === 'email_enabled' && 'Allow sending emails to users'}
+                        {key === 'push_enabled' && 'Enable browser push notifications'}
+                        {key === 'task_reminders' && 'Send task reminder notifications'}
+                        {key === 'weekly_digest' && 'Send weekly summary emails'}
+                        {key === 'marketing_emails' && 'Send promotional emails'}
+                      </p>
+                    </div>
+                    <Switch
+                      id={key}
+                      checked={value}
+                      onCheckedChange={(checked) => 
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, [key]: checked }
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="announcements">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add New Announcement</CardTitle>
+                  <CardDescription>Announcements appear in the Help Center ticker</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ann-title">Title</Label>
+                      <Input
+                        id="ann-title"
+                        placeholder="e.g., New Feature"
+                        value={newAnnouncement.title}
+                        onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ann-message">Message</Label>
+                      <Input
+                        id="ann-message"
+                        placeholder="e.g., AI chat is now available!"
+                        value={newAnnouncement.message}
+                        onChange={(e) => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={addAnnouncement}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Announcement
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Active Announcements</CardTitle>
+                  <CardDescription>Manage existing announcements</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {announcements.map((ann) => (
+                        <TableRow key={ann.id}>
+                          <TableCell className="font-medium">{ann.title}</TableCell>
+                          <TableCell className="max-w-xs truncate">{ann.message}</TableCell>
+                          <TableCell>
+                            <Badge variant={ann.is_active ? 'default' : 'secondary'}>
+                              {ann.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Switch
+                              checked={ann.is_active}
+                              onCheckedChange={(checked) => toggleAnnouncement(ann.id, checked)}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteAnnouncement(ann.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {announcements.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            No announcements yet. Add one above.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );
