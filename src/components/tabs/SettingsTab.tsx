@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Settings, Download, Upload, Key, Check, X, Eye, EyeOff, LogOut } from 'lucide-react';
+import { Settings, Download, Upload, Key, Check, X, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
 
 interface SettingsTabProps {
   onBackup: () => void;
@@ -13,7 +12,6 @@ interface SettingsTabProps {
 }
 
 export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }: SettingsTabProps) {
-  const { user, signOut } = useAuth();
   const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,31 +41,10 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    toast.success('Signed out successfully');
-  };
-
   const isConnected = !!geminiApiKey;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-20 md:pb-0">
-      {/* User Info */}
-      {user && (
-        <div className="bg-card p-6 rounded-3xl shadow-card border border-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-card-foreground">Account</h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
-            </div>
-            <Button variant="outline" onClick={handleSignOut} className="gap-2">
-              <LogOut size={16} />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* AI Configuration */}
       <div className="bg-card p-4 md:p-8 rounded-3xl shadow-card border border-border">
         <div className="flex items-center gap-3 mb-4 md:mb-6">

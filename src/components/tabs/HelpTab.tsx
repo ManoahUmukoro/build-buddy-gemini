@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { HelpCircle, ChevronDown, ChevronUp, Info, Calendar, Target, DollarSign, Book, Settings, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { HelpCircle, ChevronDown, ChevronUp, Info, Sparkles, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FaqItemProps {
   question: string;
@@ -26,7 +27,49 @@ function FaqItem({ question, answer }: FaqItemProps) {
   );
 }
 
+interface HelpArticle {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  order_index: number;
+}
+
 export function HelpTab() {
+  const [articles, setArticles] = useState<HelpArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchArticles() {
+      try {
+        const { data, error } = await supabase
+          .from('help_content')
+          .select('*')
+          .eq('is_published', true)
+          .order('category')
+          .order('order_index');
+
+        if (error) throw error;
+        setArticles(data || []);
+      } catch (err) {
+        console.error('Error fetching help articles:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchArticles();
+  }, []);
+
+  // Group articles by category
+  const articlesByCategory = articles.reduce((acc, article) => {
+    if (!acc[article.category]) {
+      acc[article.category] = [];
+    }
+    acc[article.category].push(article);
+    return acc;
+  }, {} as Record<string, HelpArticle[]>);
+
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-20">
       <div className="bg-primary text-primary-foreground p-8 rounded-2xl shadow-lg mb-8">
@@ -35,6 +78,32 @@ export function HelpTab() {
         </h2>
         <p className="text-primary-foreground/80">Your complete guide to mastering LifeOS - your personal command center for productivity, finance, and growth.</p>
       </div>
+
+      {/* Dynamic Help Content from Admin */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : articles.length > 0 ? (
+        <div className="space-y-6">
+          {Object.entries(articlesByCategory).map(([category, categoryArticles]) => (
+            <div key={category} className="bg-card p-6 rounded-xl border border-border shadow-soft">
+              <h3 className="font-bold text-lg text-card-foreground mb-4 capitalize flex items-center gap-2">
+                <Info size={20} className="text-primary"/> {category}
+              </h3>
+              <div className="space-y-2">
+                {categoryArticles.map((article) => (
+                  <FaqItem 
+                    key={article.id}
+                    question={article.title}
+                    answer={<div className="whitespace-pre-wrap">{article.content}</div>}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6">
         {/* INTRO */}
@@ -118,19 +187,6 @@ export function HelpTab() {
               }
             />
             <FaqItem 
-              question="⚙️ Data Vault (Settings)"
-              answer={
-                <div className="space-y-3">
-                  <p>Manage your data and configure your LifeOS experience.</p>
-                  <ul className="list-disc list-inside space-y-1 pl-2">
-                    <li><strong>Backup Data:</strong> Export all your data as a JSON file for safekeeping.</li>
-                    <li><strong>Restore Data:</strong> Import a previous backup to restore your data.</li>
-                    <li><strong>API Configuration:</strong> Optionally configure your own Gemini API key for AI features.</li>
-                  </ul>
-                </div>
-              }
-            />
-            <FaqItem 
               question="✨ AI Features"
               answer={
                 <div className="space-y-3">
@@ -162,27 +218,15 @@ export function HelpTab() {
             />
             <FaqItem 
               question="How does the Currency Converter work?" 
-              answer="The Finance tab allows you to toggle between Naira (₦) and Dollar ($) display. Click the refresh icon on the Balance card to switch. The system uses a reference exchange rate of approximately ₦1,600 to $1 to convert your displayed values so you can see your finances in both currencies." 
+              answer="The Finance tab allows you to toggle between Naira (₦) and Dollar ($) display. Click the refresh icon on the Balance card to switch. The system uses a reference exchange rate to convert your displayed values." 
             />
             <FaqItem 
               question="How do task reminders work?" 
-              answer="When adding or editing a task, you can set a specific time. LifeOS will send you a browser notification 5 minutes before the scheduled time (or at the exact time). Make sure to allow browser notifications when prompted. If email notifications are configured, you'll also receive email reminders." 
+              answer="When adding or editing a task, you can set a specific time. LifeOS will send you a browser notification 5 minutes before the scheduled time. Make sure to allow browser notifications when prompted." 
             />
             <FaqItem 
               question="What is the 50/30/20 budgeting rule?" 
-              answer="The 50/30/20 rule is a simple budgeting guideline: 50% of income goes to needs (rent, bills, food), 30% to wants (entertainment, shopping), and 20% to savings and financial goals. Use the 'Auto-Allocate' button in the Budgets tab to apply this automatically based on your income." 
-            />
-            <FaqItem 
-              question="How does the receipt scanner work?" 
-              answer="Click 'Scan Receipt' in the transaction form and upload a photo of your receipt. Our AI will analyze the image and extract the amount, vendor name, and suggest a category. Review the extracted data and save the transaction. Works best with clear, well-lit photos." 
-            />
-            <FaqItem 
-              question="Can I use this offline?" 
-              answer="LifeOS requires an internet connection as data is stored in the cloud for synchronization across devices. AI features like receipt scanning, smart sort, and chat also require connectivity." 
-            />
-            <FaqItem 
-              question="How do I create effective systems?" 
-              answer="Start with a clear goal, then add your 'Why' - the motivation behind it. Break the goal into small, daily habits that are easy to complete consistently. Focus on building 2-3 habits at a time rather than many at once. Use the AI habit generator for suggestions based on your goal." 
+              answer="The 50/30/20 rule is a simple budgeting guideline: 50% of income goes to needs (rent, bills, food), 30% to wants (entertainment, shopping), and 20% to savings and financial goals." 
             />
           </div>
         </div>

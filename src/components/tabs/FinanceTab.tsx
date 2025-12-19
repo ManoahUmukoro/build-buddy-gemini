@@ -269,7 +269,7 @@ export function FinanceTab({
                       type="date" 
                       value={newTransaction.date} 
                       onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
-                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none [&::-webkit-calendar-picker-indicator]:w-4 [&::-webkit-calendar-picker-indicator]:h-4" 
+                      className="w-full p-2 md:p-3 text-xs md:text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none" 
                       required 
                     />
                   </div>

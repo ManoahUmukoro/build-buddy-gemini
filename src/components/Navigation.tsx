@@ -1,9 +1,10 @@
-import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield } from 'lucide-react';
+import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, Crown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TabId, AlertItem } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useProfile } from '@/hooks/useProfile';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -22,8 +23,18 @@ const navItems = [
   { id: 'settings' as TabId, icon: Settings, label: 'Data Vault' },
 ];
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
 export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
   const { isAdmin } = useAdminAuth();
+  const { profile } = useProfile();
+  const greeting = getGreeting();
+  const displayName = profile?.display_name;
 
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 min-h-screen h-full sticky top-0">
@@ -33,6 +44,9 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
           LifeOS
         </h1>
         <p className="text-sidebar-foreground/60 text-xs mt-1 ml-8">Expert Edition v8.1</p>
+        {displayName && (
+          <p className="text-sm text-primary mt-3 font-medium">{greeting}, {displayName}!</p>
+        )}
       </div>
       
       <nav className="space-y-2 flex-1 overflow-y-auto">
@@ -87,11 +101,20 @@ interface MobileHeaderProps {
 }
 
 export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: MobileHeaderProps) {
+  const { profile } = useProfile();
+  const greeting = getGreeting();
+  const displayName = profile?.display_name;
+  
   return (
     <div className="md:hidden bg-sidebar text-sidebar-foreground p-4 flex items-center justify-between sticky top-0 z-20 shadow-soft">
-      <div className="flex items-center gap-2 font-bold text-lg">
-        <Activity className="text-primary" size={18} />
-        LifeOS
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 font-bold text-lg">
+          <Activity className="text-primary" size={18} />
+          LifeOS
+        </div>
+        {displayName && (
+          <p className="text-xs text-primary/80 mt-0.5">{greeting}, {displayName}!</p>
+        )}
       </div>
       <div className="flex items-center gap-1">
         <ThemeToggle />
@@ -110,15 +133,16 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
 interface MobileNavProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
-  onProfileClick?: () => void;
 }
 
-export function MobileNav({ activeTab, onTabChange, onProfileClick }: MobileNavProps) {
-  // Show only main 5 items in mobile nav (excluding help and profile)
-  const mobileNavItems = navItems.filter(item => item.id !== 'help' && item.id !== 'profile');
+export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
+  // Show main 5 items plus help (excluding profile and settings)
+  const mobileNavItems = navItems.filter(item => 
+    item.id !== 'profile' && item.id !== 'settings'
+  );
   
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t border-border flex justify-around p-2 pb-safe z-40">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around p-2 pb-safe z-40">
       {mobileNavItems.map(item => (
         <button
           key={item.id}
@@ -129,24 +153,26 @@ export function MobileNav({ activeTab, onTabChange, onProfileClick }: MobileNavP
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-          <span className="text-[9px] font-semibold mt-0.5">
-            {item.label.split(' ')[0]}
+          <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+          <span className="text-[9px] font-semibold mt-0.5 truncate max-w-[50px]">
+            {item.id === 'systems' ? 'Goals' : item.label.split(' ')[0]}
           </span>
         </button>
       ))}
-      {/* Profile button */}
-      <button
-        onClick={onProfileClick}
-        className={`flex flex-col items-center p-1.5 rounded-xl transition-all ${
-          false // Profile never highlighted in bottom nav
-            ? 'text-primary bg-primary/10' 
-            : 'text-muted-foreground'
-        }`}
-      >
-        <User size={20} strokeWidth={2} />
-        <span className="text-[9px] font-semibold mt-0.5">Profile</span>
-      </button>
     </nav>
+  );
+}
+
+// Mobile Footer Component
+export function MobileFooter() {
+  return (
+    <footer className="md:hidden bg-muted/50 border-t border-border py-4 px-6 text-center mb-16">
+      <p className="text-[10px] text-muted-foreground">
+        © {new Date().getFullYear()} LifeOS. All rights reserved.
+      </p>
+      <p className="text-[10px] text-muted-foreground/60 mt-1">
+        Powered by Webnexer
+      </p>
+    </footer>
   );
 }

@@ -117,8 +117,8 @@ export function ChatInterface({
   };
 
   return (
-    <div className="flex flex-col h-[60vh]">
-      <div className="flex-1 overflow-y-auto space-y-6 p-2">
+    <div className="flex flex-col h-[60vh] max-w-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 p-2">
         {history.length === 0 && (
           <div className="text-center text-muted-foreground mt-20 text-sm">
             <p>Start a conversation with {personaName}.</p>
@@ -131,7 +131,7 @@ export function ChatInterface({
                 <Sparkles size={16} className="text-primary" />
               </div>
             )}
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-soft ${
+            <div className={`max-w-[80%] p-3 md:p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-soft ${
               msg.role === 'user' 
                 ? 'bg-secondary text-secondary-foreground rounded-tr-none' 
                 : 'bg-card border border-border text-card-foreground rounded-tl-none'

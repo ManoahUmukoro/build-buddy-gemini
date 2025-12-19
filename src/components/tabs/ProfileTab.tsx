@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { User, Mail, Crown, Loader2, Check, CreditCard, History, XCircle, Bell, BellOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, Mail, Crown, Loader2, Check, CreditCard, History, XCircle, Bell, BellOff, Camera, Shield, LogOut, Key, Download, Upload, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 declare global {
@@ -309,16 +311,68 @@ export function ProfileTab() {
     );
   }
 
-  const isPro = userPlan?.plan === 'pro';
+  const { isAdmin } = useAdminAuth();
+  const { signOut } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully');
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // For now, use local storage for avatar (in production, use Supabase Storage)
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setAvatarUrl(result);
+      localStorage.setItem(`avatar_${user?.id}`, result);
+      toast.success('Profile picture updated!');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Load avatar from localStorage
+  useEffect(() => {
+    if (user?.id) {
+      const savedAvatar = localStorage.getItem(`avatar_${user.id}`);
+      if (savedAvatar) setAvatarUrl(savedAvatar);
+    }
+  }, [user?.id]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-24 md:pb-0">
-      {/* Profile Info */}
+      {/* Profile Info with Avatar */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <User className="text-primary" size={24} />
+          <div className="flex items-center gap-4">
+            <div 
+              onClick={handleAvatarClick}
+              className="relative w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center cursor-pointer group overflow-hidden"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User className="text-primary" size={32} />
+              )}
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="text-white" size={20} />
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
             <div>
               <CardTitle>Profile Settings</CardTitle>
@@ -365,6 +419,35 @@ export function ProfileTab() {
         </CardContent>
       </Card>
 
+      {/* Account Actions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+              <Settings className="text-muted-foreground" size={24} />
+            </div>
+            <div>
+              <CardTitle>Account</CardTitle>
+              <CardDescription>Manage your account settings</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isAdmin && (
+            <Link to="/admin">
+              <Button variant="outline" className="w-full gap-2 justify-start">
+                <Shield size={16} />
+                Admin Panel
+              </Button>
+            </Link>
+          )}
+          <Button variant="outline" className="w-full gap-2 justify-start text-destructive hover:text-destructive" onClick={handleSignOut}>
+            <LogOut size={16} />
+            Sign Out
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Notifications */}
       <Card>
         <CardHeader>
@@ -403,123 +486,128 @@ export function ProfileTab() {
       </Card>
 
       {/* Subscription Plan */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isPro ? 'bg-amber-500/10' : 'bg-muted'}`}>
-                <Crown className={isPro ? 'text-amber-500' : 'text-muted-foreground'} size={24} />
+      {(() => {
+        const isPro = userPlan?.plan === 'pro';
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isPro ? 'bg-amber-500/10' : 'bg-muted'}`}>
+                    <Crown className={isPro ? 'text-amber-500' : 'text-muted-foreground'} size={24} />
+                  </div>
+                  <div>
+                    <CardTitle>Subscription Plan</CardTitle>
+                    <CardDescription>Manage your subscription</CardDescription>
+                  </div>
+                </div>
+                <Badge variant={isPro ? 'default' : 'secondary'} className={isPro ? 'bg-amber-500' : ''}>
+                  {isPro ? 'Pro' : 'Free'}
+                </Badge>
               </div>
-              <div>
-                <CardTitle>Subscription Plan</CardTitle>
-                <CardDescription>Manage your subscription</CardDescription>
-              </div>
-            </div>
-            <Badge variant={isPro ? 'default' : 'secondary'} className={isPro ? 'bg-amber-500' : ''}>
-              {isPro ? 'Pro' : 'Free'}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isPro ? (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                You're on the <strong>Pro plan</strong>. Enjoy all premium features!
-              </p>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-green-500" />
-                  AI Command Center
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-green-500" />
-                  Advanced Analytics
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-green-500" />
-                  Unlimited Entries
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-green-500" />
-                  Priority Support
-                </div>
-              </div>
+            </CardHeader>
+            <CardContent>
+              {isPro ? (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    You're on the <strong>Pro plan</strong>. Enjoy all premium features!
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Check size={16} className="text-green-500" />
+                      AI Command Center
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Check size={16} className="text-green-500" />
+                      Advanced Analytics
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Check size={16} className="text-green-500" />
+                      Unlimited Entries
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Check size={16} className="text-green-500" />
+                      Priority Support
+                    </div>
+                  </div>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="gap-2 text-destructive hover:text-destructive">
-                    <XCircle size={16} />
-                    Cancel Subscription
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" className="gap-2 text-destructive hover:text-destructive">
+                        <XCircle size={16} />
+                        Cancel Subscription
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to cancel your Pro subscription? You'll lose access to premium features at the end of your billing period.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Yes, Cancel
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Upgrade to <strong>Pro</strong> to unlock all features.
+                  </p>
+                  
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">Pro Plan</span>
+                      <span className="text-2xl font-bold">₦5,000<span className="text-sm font-normal text-muted-foreground">/month</span></span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <Check size={14} className="text-primary" />
+                        AI-powered insights and chat
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={14} className="text-primary" />
+                        Advanced analytics dashboard
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={14} className="text-primary" />
+                        Unlimited journal entries & goals
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={14} className="text-primary" />
+                        Priority email support
+                      </li>
+                    </ul>
+                  </div>
+
+                  <Button 
+                    onClick={handleUpgradeToPro} 
+                    disabled={payingWithPaystack || !paystackLoaded}
+                    className="w-full gap-2"
+                    size="lg"
+                  >
+                    {payingWithPaystack ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard size={18} />
+                    )}
+                    {payingWithPaystack ? 'Processing...' : 'Upgrade to Pro'}
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to cancel your Pro subscription? You'll lose access to premium features at the end of your billing period.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Yes, Cancel
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                Upgrade to <strong>Pro</strong> to unlock all features.
-              </p>
-              
-              <div className="bg-muted/50 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">Pro Plan</span>
-                  <span className="text-2xl font-bold">₦5,000<span className="text-sm font-normal text-muted-foreground">/month</span></span>
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    Secure payment powered by Paystack
+                  </p>
                 </div>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <Check size={14} className="text-primary" />
-                    AI-powered insights and chat
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check size={14} className="text-primary" />
-                    Advanced analytics dashboard
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check size={14} className="text-primary" />
-                    Unlimited journal entries & goals
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check size={14} className="text-primary" />
-                    Priority email support
-                  </li>
-                </ul>
-              </div>
-
-              <Button 
-                onClick={handleUpgradeToPro} 
-                disabled={payingWithPaystack || !paystackLoaded}
-                className="w-full gap-2"
-                size="lg"
-              >
-                {payingWithPaystack ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CreditCard size={18} />
-                )}
-                {payingWithPaystack ? 'Processing...' : 'Upgrade to Pro'}
-              </Button>
-              
-              <p className="text-xs text-muted-foreground text-center">
-                Secure payment powered by Paystack
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Payment History */}
       {paymentHistory.length > 0 && (

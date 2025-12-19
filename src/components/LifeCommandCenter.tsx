@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Sidebar, MobileHeader, MobileNav } from '@/components/Navigation';
+import { Sidebar, MobileHeader, MobileNav, MobileFooter } from '@/components/Navigation';
 import { Modal } from '@/components/Modal';
 import { Onboarding } from '@/components/Onboarding';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
@@ -754,9 +754,12 @@ export default function LifeCommandCenter() {
               />
             )}
           </div>
+          
+          {/* Mobile Footer */}
+          <MobileFooter />
         </main>
         
-        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} onProfileClick={() => setActiveTab('profile')} />
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
         
         {/* AI Command Button */}
         <AICommandButton 
