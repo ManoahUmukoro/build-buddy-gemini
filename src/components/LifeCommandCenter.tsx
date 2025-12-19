@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileHeader, MobileNav } from '@/components/Navigation';
 import { Modal } from '@/components/Modal';
+import { Onboarding } from '@/components/Onboarding';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { SystemsTab } from '@/components/tabs/SystemsTab';
 import { FinanceTab } from '@/components/tabs/FinanceTab';
@@ -79,8 +80,15 @@ export default function LifeCommandCenter() {
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroActive, setPomodoroActive] = useState(false);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    const hasSeenOnboarding = localStorage.getItem('lifeos_onboarding_complete');
+    return !hasSeenOnboarding;
+  });
 
-  // Task Time Reminder System
+  const handleCompleteOnboarding = () => {
+    localStorage.setItem('lifeos_onboarding_complete', 'true');
+    setShowOnboarding(false);
+  };
   const checkTaskReminders = useCallback(async () => {
     const now = new Date();
     const currentHours = now.getHours();
@@ -621,11 +629,17 @@ export default function LifeCommandCenter() {
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      {showOnboarding && (
+        <Onboarding 
+          onComplete={handleCompleteOnboarding} 
+          displayName={profile?.display_name || 'there'} 
+        />
+      )}
       <div className="min-h-screen h-full bg-background text-foreground flex flex-col md:flex-row">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
         
-        <main className="flex-1 overflow-y-auto w-full pb-24 md:pb-0 min-h-screen">
-          <MobileHeader />
+        <main className="flex-1 overflow-y-auto w-full pb-20 md:pb-0 min-h-screen">
+          <MobileHeader alerts={alerts} onClearAlerts={clearAlerts} />
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {activeTab === 'dashboard' && (
@@ -728,7 +742,7 @@ export default function LifeCommandCenter() {
           </div>
         </main>
         
-        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
         
         {/* AI Command Button */}
         <AICommandButton 

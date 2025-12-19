@@ -49,11 +49,11 @@ export default function Auth() {
           return;
         }
 
+        // Use signUp without auto-confirm to trigger OTP email
         const { error } = await supabase.auth.signUp({ 
           email, 
           password,
           options: { 
-            emailRedirectTo: `${window.location.origin}/`,
             data: { display_name: displayName.trim() }
           }
         });
@@ -315,6 +315,11 @@ export default function Auth() {
             </Button>
           </form>
         </div>
+        
+        {/* Mobile branding */}
+        <p className="md:hidden text-center text-xs text-muted-foreground mt-6">
+          Powered by Webnexer
+        </p>
       </div>
     </div>
   );
