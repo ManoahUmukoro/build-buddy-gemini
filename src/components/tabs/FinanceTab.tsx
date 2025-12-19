@@ -154,7 +154,7 @@ export function FinanceTab({
     }
     
     setNewTransaction({
-      type: 'expense',
+      type: 'income',
       amount: '',
       category: categories[0],
       description: '',
@@ -255,15 +255,6 @@ export function FinanceTab({
                 </div>
                 <form onSubmit={handleTransactionSubmit} className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-4">
                   <div className="col-span-1 md:col-span-4">
-                    <input 
-                      type="date" 
-                      value={newTransaction.date} 
-                      onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
-                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none" 
-                      required 
-                    />
-                  </div>
-                  <div className="col-span-1 md:col-span-4">
                     <select 
                       value={newTransaction.type} 
                       onChange={e => setNewTransaction({ ...newTransaction, type: e.target.value as 'income' | 'expense' })}
@@ -272,6 +263,15 @@ export function FinanceTab({
                       <option value="income">Income (+)</option>
                       <option value="expense">Expense (-)</option>
                     </select>
+                  </div>
+                  <div className="col-span-1 md:col-span-4">
+                    <input 
+                      type="date" 
+                      value={newTransaction.date} 
+                      onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
+                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none [&::-webkit-calendar-picker-indicator]:w-4 [&::-webkit-calendar-picker-indicator]:h-4" 
+                      required 
+                    />
                   </div>
                   <div className="col-span-2 md:col-span-4">
                     <input 

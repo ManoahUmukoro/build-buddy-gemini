@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Sparkles, ArrowRight, Loader2, X, GripVertical } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useAI } from '@/hooks/useAI';
 import { toast } from 'sonner';
@@ -12,9 +12,79 @@ interface AICommandButtonProps {
 
 export function AICommandButton({ onAddTask, onAddTransaction, onAddSavingsGoal }: AICommandButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isHidden, setIsHidden] = useState(() => {
+    const stored = localStorage.getItem('ai_button_hidden');
+    return stored === 'true';
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [position, setPosition] = useState(() => {
+    const stored = localStorage.getItem('ai_button_position');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return { x: null, y: null };
+      }
+    }
+    return { x: null, y: null };
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
   const ai = useAI();
+
+  useEffect(() => {
+    localStorage.setItem('ai_button_hidden', String(isHidden));
+  }, [isHidden]);
+
+  useEffect(() => {
+    if (position.x !== null && position.y !== null) {
+      localStorage.setItem('ai_button_position', JSON.stringify(position));
+    }
+  }, [position]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!buttonRef.current) return;
+    setIsDragging(true);
+    const rect = buttonRef.current.getBoundingClientRect();
+    dragStartRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newX = e.clientX - dragStartRef.current.x;
+      const newY = e.clientY - dragStartRef.current.y;
+      
+      // Keep within viewport bounds
+      const maxX = window.innerWidth - 60;
+      const maxY = window.innerHeight - 60;
+      
+      setPosition({
+        x: Math.max(10, Math.min(newX, maxX)),
+        y: Math.max(10, Math.min(newY, maxY))
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +94,6 @@ export function AICommandButton({ onAddTask, onAddTransaction, onAddSavingsGoal 
     const command = input.toLowerCase();
     
     try {
-      // Parse the command locally first for common patterns
       if (command.includes('add task') || command.includes('add a task')) {
         const taskText = input.replace(/add\s*(a\s*)?task\s*(to\s*)?(buy|call|do|get|send|write)?/i, '').trim();
         if (taskText) {
@@ -88,14 +157,43 @@ export function AICommandButton({ onAddTask, onAddTransaction, onAddSavingsGoal 
     "New Goal: Read Books"
   ];
 
+  const buttonStyle = position.x !== null && position.y !== null
+    ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' }
+    : {};
+
+  if (isHidden) {
+    return (
+      <button
+        onClick={() => setIsHidden(false)}
+        className="fixed bottom-20 md:bottom-10 right-6 md:right-10 bg-muted text-muted-foreground p-2 rounded-full shadow-lg hover:bg-accent transition-all z-50 opacity-50 hover:opacity-100"
+        title="Show AI Command Center"
+      >
+        <Sparkles size={16} />
+      </button>
+    );
+  }
+
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 md:bottom-10 right-6 md:right-10 bg-gradient-to-r from-primary to-accent text-primary-foreground p-4 rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all z-50"
-        title="Ask LifeOS"
+        ref={buttonRef}
+        onClick={() => !isDragging && setIsOpen(true)}
+        onMouseDown={handleMouseDown}
+        style={buttonStyle}
+        className={`fixed ${position.x === null ? 'bottom-20 md:bottom-10 right-6 md:right-10' : ''} bg-gradient-to-r from-primary to-accent text-primary-foreground p-4 rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all z-50 group ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
+        title="Ask LifeOS (drag to move)"
       >
         <Sparkles size={28} />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsHidden(true);
+          }}
+          className="absolute -top-1 -right-1 bg-card text-muted-foreground p-1 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+          title="Hide AI button"
+        >
+          <X size={12} />
+        </button>
       </button>
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="AI Command Center" maxWidth="max-w-xl">

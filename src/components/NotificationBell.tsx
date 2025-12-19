@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { AlertItem } from '@/lib/types';
 
@@ -9,6 +9,20 @@ interface NotificationBellProps {
 
 export function NotificationBell({ alerts, onClear }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   const requestNotifyPermission = async () => {
     try {
@@ -27,7 +41,7 @@ export function NotificationBell({ alerts, onClear }: NotificationBellProps) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={popoverRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="text-sidebar-foreground/60 hover:text-sidebar-foreground relative p-2"
@@ -39,7 +53,7 @@ export function NotificationBell({ alerts, onClear }: NotificationBellProps) {
       </button>
       
       {isOpen && (
-        <div className="absolute bottom-12 left-0 md:left-auto md:right-0 w-64 bg-card text-card-foreground rounded-xl shadow-xl p-4 z-[201] border border-border">
+        <div className="absolute top-full mt-2 right-0 w-64 bg-card text-card-foreground rounded-xl shadow-xl p-4 z-[201] border border-border">
           <div className="flex justify-between items-center mb-2">
             <h4 className="font-bold text-sm">Notifications</h4>
             <div className="flex gap-2">

@@ -57,7 +57,7 @@ export default function LifeCommandCenter() {
   const [breakingDownTask, setBreakingDownTask] = useState<string | number | null>(null);
   const [currency, setCurrency] = useState('₦');
   const [newTransaction, setNewTransaction] = useState({
-    type: 'expense' as 'income' | 'expense',
+    type: 'income' as 'income' | 'expense',
     amount: '',
     category: categories[0] || 'Food',
     description: '',
@@ -541,6 +541,15 @@ export default function LifeCommandCenter() {
         break;
       case 'deleteSubscription':
         await setSubscriptions(prev => prev.filter(s => String(s.id) !== String(modalConfig.data)));
+        break;
+      case 'addSavings':
+        const savingsAmount = parseFloat(inputValue.replace(/[^0-9.]/g, ''));
+        if (savingsAmount > 0) {
+          await setSavingsGoals(prev => [...prev, { id: Date.now(), name: inputValue.replace(/\d+/g, '').trim() || 'Savings Goal', target: savingsAmount, current: 0 }]);
+        }
+        break;
+      case 'deleteSavings':
+        await setSavingsGoals(prev => prev.filter(g => String(g.id) !== String(modalConfig.data)));
         break;
     }
     closeModal();

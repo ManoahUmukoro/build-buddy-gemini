@@ -117,13 +117,13 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
                       </div>
                     </td>
                     {DAYS.map((_, i) => (
-                      <td key={i} className={`p-1.5 md:p-3 text-center ${i === currentDayIndex ? 'bg-primary/5' : ''}`}>
+                      <td key={i} className={`p-1 md:p-3 text-center ${i === currentDayIndex ? 'bg-primary/5' : ''}`}>
                         <button 
                           onClick={() => toggleHabit(system.id, h.id, i)}
-                          className={`w-5 h-5 md:w-6 md:h-6 rounded border flex items-center justify-center transition-colors text-xs ${
+                          className={`w-6 h-6 md:w-6 md:h-6 rounded border flex items-center justify-center transition-colors text-xs mx-auto ${
                             h.completed[`d${i}`] 
                               ? 'bg-success border-success text-success-foreground shadow-soft' 
-                              : 'bg-card hover:border-muted-foreground/50'
+                              : 'bg-card border-border hover:border-muted-foreground/50'
                           }`}
                         >
                           {h.completed[`d${i}`] && "✓"}
