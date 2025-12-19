@@ -1,1 +1,19 @@
 project_id = "flwzkjdqzfaokhkpwavs"
+
+[functions.gemini-chat]
+verify_jwt = true
+
+[functions.scan-receipt]
+verify_jwt = true
+
+[functions.send-task-reminder]
+verify_jwt = false
+
+[functions.daily-digest]
+verify_jwt = false
+
+[functions.welcome-user]
+verify_jwt = false
+
+[functions.weekly-checkin]
+verify_jwt = false
