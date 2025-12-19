@@ -46,55 +46,59 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
         ))}
       </nav>
       
-      <div className="pt-6 border-t border-sidebar-border flex items-center justify-between mt-auto">
-        <div className="flex items-center gap-3 text-success">
-          <CheckCircle2 size={16} />
-          <span className="text-sm">System Online</span>
+      <div className="pt-6 border-t border-sidebar-border mt-auto space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-success">
+            <CheckCircle2 size={16} />
+            <span className="text-sm">System Online</span>
+          </div>
+          {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
         </div>
-        {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+        <p className="text-[10px] text-sidebar-foreground/40 text-center">Powered by Webnexer</p>
       </div>
     </aside>
   );
 }
 
-export function MobileHeader() {
+interface MobileHeaderProps {
+  alerts?: AlertItem[];
+  onClearAlerts?: () => void;
+}
+
+export function MobileHeader({ alerts = [], onClearAlerts }: MobileHeaderProps) {
   return (
     <div className="md:hidden bg-sidebar text-sidebar-foreground p-4 flex items-center justify-between sticky top-0 z-20 shadow-soft">
-      <div className="flex items-center gap-2 font-bold text-xl">
-        <Activity className="text-primary" size={20} />
+      <div className="flex items-center gap-2 font-bold text-lg">
+        <Activity className="text-primary" size={18} />
         LifeOS
       </div>
+      {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
     </div>
   );
 }
 
-export function MobileNav({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
+export function MobileNav({ activeTab, onTabChange }: Omit<SidebarProps, 'alerts' | 'onClearAlerts'>) {
   // Show only main 5 items in mobile nav (excluding help)
   const mobileNavItems = navItems.filter(item => item.id !== 'help');
   
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t border-border flex justify-around p-3 pb-safe z-40">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t border-border flex justify-around p-2 pb-safe z-40">
       {mobileNavItems.map(item => (
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
-          className={`flex flex-col items-center p-2 rounded-xl transition-all ${
+          className={`flex flex-col items-center p-1.5 rounded-xl transition-all ${
             activeTab === item.id 
               ? 'text-primary bg-primary/10' 
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={24} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-          <span className="text-[10px] font-bold mt-1">
+          <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+          <span className="text-[9px] font-semibold mt-0.5">
             {item.label.split(' ')[0]}
           </span>
         </button>
       ))}
-      {onClearAlerts && (
-        <div className="flex flex-col items-center p-2">
-          <NotificationBell alerts={alerts} onClear={onClearAlerts} />
-        </div>
-      )}
     </nav>
   );
 }
