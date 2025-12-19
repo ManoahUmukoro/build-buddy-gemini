@@ -1,64 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Calendar, Target, DollarSign, Book, Sparkles, 
-  ChevronRight, ChevronLeft, Check, ArrowRight
+  ChevronRight, ChevronLeft, ArrowRight, Loader2, LucideIcon
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface OnboardingProps {
   onComplete: () => void;
   displayName: string;
 }
 
-const steps = [
-  {
-    id: 'welcome',
-    icon: Sparkles,
-    title: 'Welcome to LifeOS',
-    subtitle: 'Your personal command center',
-    description: 'LifeOS helps you organize your life, track your habits, manage finances, and grow as a person. Let\'s take a quick tour!',
-    color: 'from-primary to-purple-500',
-  },
-  {
-    id: 'planner',
-    icon: Calendar,
-    title: 'Daily Planner',
-    subtitle: 'Stay on top of your tasks',
-    description: 'Plan your day with tasks, set times for reminders, and check them off as you complete them. Never miss an important deadline again.',
-    color: 'from-blue-500 to-cyan-500',
-  },
-  {
-    id: 'systems',
-    icon: Target,
-    title: 'Systems & Habits',
-    subtitle: 'Build consistency',
-    description: 'Create systems for your goals and track daily habits. Watch your streaks grow as you build the life you want, one day at a time.',
-    color: 'from-green-500 to-emerald-500',
-  },
-  {
-    id: 'finance',
-    icon: DollarSign,
-    title: 'Finance Tracker',
-    subtitle: 'Master your money',
-    description: 'Track income and expenses, set budgets using the 50/30/20 rule, and work towards your savings goals. Scan receipts with AI!',
-    color: 'from-yellow-500 to-orange-500',
-  },
-  {
-    id: 'journal',
-    icon: Book,
-    title: 'Reflection Journal',
-    subtitle: 'Grow through reflection',
-    description: 'Daily mood tracking, wins, and areas to improve. Build self-awareness and watch your progress over time with weekly summaries.',
-    color: 'from-pink-500 to-rose-500',
-  },
-];
+interface OnboardingStep {
+  id: string;
+  icon: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  color: string;
+}
+
+const iconMap: Record<string, LucideIcon> = {
+  Sparkles,
+  Calendar,
+  Target,
+  DollarSign,
+  Book,
+};
 
 export function Onboarding({ onComplete, displayName }: OnboardingProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [steps, setSteps] = useState<OnboardingStep[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    async function fetchOnboardingSteps() {
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'onboarding_steps')
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data?.value && Array.isArray(data.value)) {
+          setSteps(data.value as unknown as OnboardingStep[]);
+        }
+        // No fallback - if no steps exist in DB, steps array stays empty
+      } catch (err) {
+        console.error('Error fetching onboarding steps:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchOnboardingSteps();
+  }, []);
+
+  // If loading, show spinner
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If no steps configured in DB, skip onboarding
+  if (steps.length === 0) {
+    onComplete();
+    return null;
+  }
   
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;
   const isFirstStep = currentStep === 0;
+  const IconComponent = iconMap[step.icon] || Sparkles;
   
   const handleNext = () => {
     if (isLastStep) {
@@ -103,7 +121,7 @@ export function Onboarding({ onComplete, displayName }: OnboardingProps) {
         <div className="w-full max-w-md mx-auto text-center animate-in">
           {/* Icon */}
           <div className={`w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-gradient-to-br ${step.color} flex items-center justify-center mx-auto mb-6 shadow-lg`}>
-            <step.icon className="text-white" size={36} />
+            <IconComponent className="text-white" size={36} />
           </div>
           
           {/* Title */}

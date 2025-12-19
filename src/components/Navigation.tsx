@@ -1,10 +1,12 @@
-import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, Crown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TabId, AlertItem } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -13,7 +15,13 @@ interface SidebarProps {
   onClearAlerts?: () => void;
 }
 
-const navItems = [
+interface NavItem {
+  id: TabId;
+  icon: LucideIcon;
+  label: string;
+}
+
+const defaultNavItems: NavItem[] = [
   { id: 'dashboard' as TabId, icon: Calendar, label: 'Planner' },
   { id: 'systems' as TabId, icon: Target, label: 'Systems & Goals' },
   { id: 'finance' as TabId, icon: DollarSign, label: 'Finances' },
@@ -23,6 +31,16 @@ const navItems = [
   { id: 'settings' as TabId, icon: Settings, label: 'Data Vault' },
 ];
 
+const iconMap: Record<string, LucideIcon> = {
+  Calendar,
+  Target,
+  DollarSign,
+  Book,
+  HelpCircle,
+  User,
+  Settings,
+};
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good Morning';
@@ -30,11 +48,76 @@ function getGreeting(): string {
   return 'Good Evening';
 }
 
+function useNavItems() {
+  const [navItems, setNavItems] = useState<NavItem[]>(defaultNavItems);
+
+  useEffect(() => {
+    async function fetchNavOrder() {
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'ui_layout_config')
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data?.value) {
+          const config = data.value as { nav_order?: string[] };
+          if (config.nav_order && Array.isArray(config.nav_order)) {
+            // Reorder items based on nav_order
+            const orderedItems: NavItem[] = [];
+            config.nav_order.forEach((id: string) => {
+              const item = defaultNavItems.find(i => i.id === id);
+              if (item) orderedItems.push(item);
+            });
+            // Add any items not in the order at the end
+            defaultNavItems.forEach(item => {
+              if (!orderedItems.find(i => i.id === item.id)) {
+                orderedItems.push(item);
+              }
+            });
+            setNavItems(orderedItems);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching nav order:', err);
+      }
+    }
+
+    fetchNavOrder();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('nav-order-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'admin_settings',
+          filter: 'key=eq.ui_layout_config',
+        },
+        () => {
+          fetchNavOrder();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return navItems;
+}
+
 export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
   const { isAdmin } = useAdminAuth();
   const { profile } = useProfile();
   const greeting = getGreeting();
   const displayName = profile?.display_name;
+  const navItems = useNavItems();
 
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 min-h-screen h-full sticky top-0">
@@ -143,6 +226,8 @@ interface MobileNavProps {
 }
 
 export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
+  const navItems = useNavItems();
+  
   // Show main 5 items plus help (excluding profile and settings)
   const mobileNavItems = navItems.filter(item => 
     item.id !== 'profile' && item.id !== 'settings'
@@ -160,7 +245,7 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+          <item.icon size={18} />
           <span className="text-[9px] font-semibold mt-0.5 truncate max-w-[50px]">
             {item.id === 'systems' ? 'Goals' : item.label.split(' ')[0]}
           </span>

@@ -77,11 +77,11 @@ export default function AdminBilling() {
       if (providerError && providerError.code !== 'PGRST116') throw providerError;
 
       if (providerData?.value) {
-        const parsed = typeof providerData.value === 'string' ? JSON.parse(providerData.value) : providerData.value;
-        setProviders(parsed);
+        // Value is already parsed by Supabase
+        setProviders(providerData.value as unknown as PaymentProviders);
       }
 
-      // Fetch subscription plans
+      // Fetch subscription plans - NO FALLBACKS
       const { data: plansData, error: plansError } = await supabase
         .from('admin_settings')
         .select('value')
@@ -91,31 +91,10 @@ export default function AdminBilling() {
       if (plansError && plansError.code !== 'PGRST116') throw plansError;
 
       if (plansData?.value) {
-        const parsed = typeof plansData.value === 'string' ? JSON.parse(plansData.value) : plansData.value;
-        setPlans(parsed);
-      } else {
-        // Default plans
-        setPlans([
-          {
-            id: 'free',
-            name: 'Free',
-            price: 0,
-            currency: 'NGN',
-            interval: 'monthly',
-            features: ['Basic task management', 'Up to 3 systems', 'Basic finance tracking'],
-            is_active: true,
-          },
-          {
-            id: 'pro',
-            name: 'Pro',
-            price: 5000,
-            currency: 'NGN',
-            interval: 'monthly',
-            features: ['Unlimited tasks & systems', 'AI-powered insights', 'Advanced analytics', 'Priority support', 'Receipt scanning'],
-            is_active: true,
-          },
-        ]);
+        // Value is already parsed by Supabase
+        setPlans(plansData.value as unknown as SubscriptionPlan[]);
       }
+      // No fallback - empty state will be shown if no plans exist
     } catch (err) {
       console.error('Error fetching settings:', err);
       toast.error('Failed to load billing settings');
