@@ -1,10 +1,25 @@
 import { useAdminSettings } from '@/hooks/useAdminSettings';
-import { AlertTriangle } from 'lucide-react';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 
 export function MaintenanceBanner() {
-  const { isMaintenanceMode, maintenanceMessage } = useAdminSettings();
+  const { isMaintenanceMode, maintenanceMessage, loading: settingsLoading } = useAdminSettings();
+  const { isAdmin, loading: permissionsLoading } = useAdminPermissions();
 
-  if (!isMaintenanceMode) return null;
+  // Don't show anything while loading
+  if (settingsLoading || permissionsLoading) {
+    return null;
+  }
+
+  // Admins bypass maintenance mode
+  if (isAdmin) {
+    return null;
+  }
+
+  // Not in maintenance mode
+  if (!isMaintenanceMode) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">

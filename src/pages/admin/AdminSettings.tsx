@@ -19,9 +19,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
+interface MaintenanceConfig {
+  enabled: boolean;
+  message: string;
+}
+
 interface AppSettings {
-  maintenance_mode: boolean;
-  maintenance_message: string;
+  maintenance_mode: MaintenanceConfig;
   modules: {
     dashboard: boolean;
     systems: boolean;
@@ -54,8 +58,10 @@ interface Announcement {
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState<AppSettings>({
-    maintenance_mode: false,
-    maintenance_message: 'We are currently performing maintenance. Please check back soon.',
+    maintenance_mode: {
+      enabled: false,
+      message: 'We are currently performing maintenance. Please check back soon.',
+    },
     modules: {
       dashboard: true,
       systems: true,
@@ -102,9 +108,15 @@ export default function AdminSettings() {
         settingsMap[item.key] = item.value;
       });
 
+      // Handle maintenance_mode as a JSON object { enabled, message }
+      const maintenanceConfig = settingsMap.maintenance_mode;
+      const parsedMaintenance: MaintenanceConfig = 
+        maintenanceConfig && typeof maintenanceConfig === 'object'
+          ? { enabled: maintenanceConfig.enabled ?? false, message: maintenanceConfig.message ?? '' }
+          : { enabled: false, message: 'We are currently performing maintenance. Please check back soon.' };
+
       setSettings({
-        maintenance_mode: settingsMap.maintenance_mode ?? false,
-        maintenance_message: settingsMap.maintenance_message ?? 'We are currently performing maintenance.',
+        maintenance_mode: parsedMaintenance,
         modules: settingsMap.modules ?? settings.modules,
         notifications: settingsMap.notifications ?? settings.notifications,
         features: settingsMap.features ?? settings.features,
@@ -125,7 +137,6 @@ export default function AdminSettings() {
 
       const updates = [
         { key: 'maintenance_mode', value: settings.maintenance_mode },
-        { key: 'maintenance_message', value: settings.maintenance_message },
         { key: 'modules', value: settings.modules },
         { key: 'notifications', value: settings.notifications },
         { key: 'features', value: settings.features },
@@ -275,16 +286,22 @@ export default function AdminSettings() {
                   </div>
                   <Switch
                     id="maintenance"
-                    checked={settings.maintenance_mode}
-                    onCheckedChange={(checked) => setSettings({ ...settings, maintenance_mode: checked })}
+                    checked={settings.maintenance_mode.enabled}
+                    onCheckedChange={(checked) => setSettings({ 
+                      ...settings, 
+                      maintenance_mode: { ...settings.maintenance_mode, enabled: checked } 
+                    })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="maintenance-msg">Maintenance Message</Label>
                   <Input
                     id="maintenance-msg"
-                    value={settings.maintenance_message}
-                    onChange={(e) => setSettings({ ...settings, maintenance_message: e.target.value })}
+                    value={settings.maintenance_mode.message}
+                    onChange={(e) => setSettings({ 
+                      ...settings, 
+                      maintenance_mode: { ...settings.maintenance_mode, message: e.target.value } 
+                    })}
                     placeholder="We are currently performing maintenance..."
                   />
                 </div>
