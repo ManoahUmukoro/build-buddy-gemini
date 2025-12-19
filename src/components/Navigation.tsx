@@ -87,7 +87,14 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
             {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
           </div>
         </div>
-        <p className="text-[10px] text-sidebar-foreground/40 text-center">Powered by Webnexer</p>
+        <a 
+          href="https://webnexer.com" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-[10px] text-sidebar-foreground/40 hover:text-primary text-center block transition-colors"
+        >
+          Powered by Webnexer
+        </a>
       </div>
     </aside>
   );
@@ -166,13 +173,18 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
 // Mobile Footer Component
 export function MobileFooter() {
   return (
-    <footer className="md:hidden bg-muted/50 border-t border-border py-4 px-6 text-center mb-16">
+    <footer className="md:hidden bg-muted/50 border-t border-border py-3 px-6 text-center mb-16">
       <p className="text-[10px] text-muted-foreground">
         © {new Date().getFullYear()} LifeOS. All rights reserved.
       </p>
-      <p className="text-[10px] text-muted-foreground/60 mt-1">
+      <a 
+        href="https://webnexer.com" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="text-[10px] text-primary/60 hover:text-primary mt-1 inline-block transition-colors"
+      >
         Powered by Webnexer
-      </p>
+      </a>
     </footer>
   );
 }
