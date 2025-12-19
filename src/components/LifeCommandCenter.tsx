@@ -11,6 +11,7 @@ import { FinanceTab } from '@/components/tabs/FinanceTab';
 import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
 import { HelpTab } from '@/components/tabs/HelpTab';
+import { ProfileTab } from '@/components/tabs/ProfileTab';
 import { SaveIndicator } from '@/components/SaveIndicator';
 import { AICommandButton } from '@/components/AICommandButton';
 import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem } from '@/lib/types';
@@ -738,6 +739,10 @@ export default function LifeCommandCenter() {
             
             {activeTab === 'help' && (
               <HelpTab />
+            )}
+            
+            {activeTab === 'profile' && (
+              <ProfileTab />
             )}
             
             {activeTab === 'settings' && (

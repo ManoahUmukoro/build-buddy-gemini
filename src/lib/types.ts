@@ -69,7 +69,7 @@ export interface AlertItem {
   text: string;
 }
 
-export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'help' | 'settings';
+export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'help' | 'settings' | 'profile';
 
 export interface ModalConfig {
   isOpen: boolean;
