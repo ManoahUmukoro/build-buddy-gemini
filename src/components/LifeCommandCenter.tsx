@@ -16,6 +16,7 @@ import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem } from '@/lib/
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
 import { useProfile } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
 import { getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -80,7 +81,7 @@ export default function LifeCommandCenter() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   // Task Time Reminder System
-  const checkTaskReminders = useCallback(() => {
+  const checkTaskReminders = useCallback(async () => {
     const now = new Date();
     const currentHours = now.getHours();
     const currentMinutes = now.getMinutes();
@@ -89,7 +90,7 @@ export default function LifeCommandCenter() {
     const todayKey = `d${getCurrentDayIndex()}`;
     const todayTasks = tasks[todayKey] || [];
     
-    todayTasks.forEach(task => {
+    for (const task of todayTasks) {
       if (task.time && !task.done && !task.alerted) {
         const [taskHour, taskMinute] = task.time.split(':').map(Number);
         const taskTotalMins = taskHour * 60 + taskMinute;
@@ -120,10 +121,18 @@ export default function LifeCommandCenter() {
             });
           }
           
+          // Send email notification
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.email) {
+            supabase.functions.invoke('send-task-reminder', {
+              body: { taskText: task.text, taskTime: task.time, userEmail: user.email }
+            }).catch(err => console.log('Email notification skipped:', err));
+          }
+          
           toast.info(`Reminder: ${task.text}`, { description: `Scheduled for ${task.time}` });
         }
       }
-    });
+    }
   }, [tasks, setTasks]);
 
   // Run reminder check every minute
@@ -318,21 +327,67 @@ export default function LifeCommandCenter() {
     setIsCategorizing(false);
   };
 
-  const handleReceiptScan = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     setIsScanningReceipt(true);
-    // For now, simulate - would need image processing
-    setTimeout(() => {
-      setNewTransaction(prev => ({
-        ...prev,
-        amount: String(Math.floor(Math.random() * 10000)),
-        description: 'Scanned Receipt Item',
-        type: 'expense'
-      }));
+    
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        
+        const { data, error } = await supabase.functions.invoke('scan-receipt', {
+          body: { imageBase64: base64 }
+        });
+        
+        if (error) {
+          console.error('Receipt scan error:', error);
+          toast.error('Failed to scan receipt. Please try again.');
+          setIsScanningReceipt(false);
+          return;
+        }
+        
+        if (data?.items && data.items.length > 0) {
+          // Use the first item or total for the transaction
+          const mainItem = data.items[0];
+          const amount = data.total || mainItem.amount;
+          const description = data.vendor || mainItem.description || 'Scanned Receipt';
+          const category = mainItem.category || 'Other';
+          
+          setNewTransaction(prev => ({
+            ...prev,
+            amount: String(Math.round(amount)),
+            description,
+            category,
+            type: 'expense',
+            date: data.date || new Date().toISOString().split('T')[0]
+          }));
+          
+          toast.success(`Receipt scanned! Found ${data.items.length} item(s) totaling ${currency}${amount}`);
+        } else if (data?.total) {
+          setNewTransaction(prev => ({
+            ...prev,
+            amount: String(Math.round(data.total)),
+            description: data.vendor || 'Scanned Receipt',
+            type: 'expense',
+            date: data.date || new Date().toISOString().split('T')[0]
+          }));
+          toast.success('Receipt scanned successfully!');
+        } else {
+          toast.error('Could not read receipt. Please try a clearer image.');
+        }
+        
+        setIsScanningReceipt(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Receipt scan error:', error);
+      toast.error('Failed to scan receipt.');
       setIsScanningReceipt(false);
-      toast.success("Receipt Scanned!");
-    }, 2000);
+    }
   };
 
   const handleSaveJournal = async (e: React.FormEvent) => {
@@ -566,10 +621,10 @@ export default function LifeCommandCenter() {
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+      <div className="min-h-screen h-full bg-background text-foreground flex flex-col md:flex-row">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
         
-        <main className="flex-1 overflow-y-auto w-full pb-24 md:pb-0">
+        <main className="flex-1 overflow-y-auto w-full pb-24 md:pb-0 min-h-screen">
           <MobileHeader />
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto">

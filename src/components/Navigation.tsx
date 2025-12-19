@@ -20,7 +20,7 @@ const navItems = [
 
 export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
   return (
-    <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 h-screen sticky top-0">
+    <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 min-h-screen h-full sticky top-0">
       <div className="mb-10">
         <h1 className="text-2xl font-bold tracking-tighter flex items-center gap-2">
           <Activity className="text-primary" />
@@ -29,7 +29,7 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
         <p className="text-sidebar-foreground/60 text-xs mt-1 ml-8">Expert Edition v8.1</p>
       </div>
       
-      <nav className="space-y-2 flex-1">
+      <nav className="space-y-2 flex-1 overflow-y-auto">
         {navItems.map(item => (
           <button
             key={item.id}
@@ -46,7 +46,7 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
         ))}
       </nav>
       
-      <div className="pt-6 border-t border-sidebar-border flex items-center justify-between">
+      <div className="pt-6 border-t border-sidebar-border flex items-center justify-between mt-auto">
         <div className="flex items-center gap-3 text-success">
           <CheckCircle2 size={16} />
           <span className="text-sm">System Online</span>
