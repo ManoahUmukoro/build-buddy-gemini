@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,8 +9,10 @@ import { SystemsTab } from '@/components/tabs/SystemsTab';
 import { FinanceTab } from '@/components/tabs/FinanceTab';
 import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
+import { HelpTab } from '@/components/tabs/HelpTab';
 import { SaveIndicator } from '@/components/SaveIndicator';
-import { TabId, ModalConfig, ChatMessage, JournalEntry } from '@/lib/types';
+import { AICommandButton } from '@/components/AICommandButton';
+import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
 import { useProfile } from '@/hooks/useProfile';
@@ -75,6 +77,63 @@ export default function LifeCommandCenter() {
   const [draftText, setDraftText] = useState('');
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroActive, setPomodoroActive] = useState(false);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
+  // Task Time Reminder System
+  const checkTaskReminders = useCallback(() => {
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+    
+    const todayKey = `d${getCurrentDayIndex()}`;
+    const todayTasks = tasks[todayKey] || [];
+    
+    todayTasks.forEach(task => {
+      if (task.time && !task.done && !task.alerted) {
+        const [taskHour, taskMinute] = task.time.split(':').map(Number);
+        const taskTotalMins = taskHour * 60 + taskMinute;
+        const currentTotalMins = currentHours * 60 + currentMinutes;
+        
+        // Alert 5 minutes before or at the time
+        if (taskTotalMins - currentTotalMins <= 5 && taskTotalMins - currentTotalMins >= 0) {
+          // Add to alerts
+          setAlerts(prev => {
+            const exists = prev.some(a => a.text === task.text);
+            if (exists) return prev;
+            return [...prev, { time: task.time || currentTimeStr, text: task.text }];
+          });
+          
+          // Mark as alerted
+          setTasks(prev => ({
+            ...prev,
+            [todayKey]: prev[todayKey]?.map(t => 
+              t.id === task.id ? { ...t, alerted: true } : t
+            ) || []
+          }));
+          
+          // Browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`Task Reminder: ${task.text}`, {
+              body: `Scheduled for ${task.time}`,
+              icon: '/favicon.ico'
+            });
+          }
+          
+          toast.info(`Reminder: ${task.text}`, { description: `Scheduled for ${task.time}` });
+        }
+      }
+    });
+  }, [tasks, setTasks]);
+
+  // Run reminder check every minute
+  useEffect(() => {
+    checkTaskReminders();
+    const interval = setInterval(checkTaskReminders, 60000);
+    return () => clearInterval(interval);
+  }, [checkTaskReminders]);
+
+  const clearAlerts = () => setAlerts([]);
 
   // Update welcome message when profile loads
   useEffect(() => {
@@ -508,7 +567,7 @@ export default function LifeCommandCenter() {
       <Toaster />
       <Sonner />
       <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
         
         <main className="flex-1 overflow-y-auto w-full pb-24 md:pb-0">
           <MobileHeader />
@@ -599,6 +658,10 @@ export default function LifeCommandCenter() {
               />
             )}
             
+            {activeTab === 'help' && (
+              <HelpTab />
+            )}
+            
             {activeTab === 'settings' && (
               <SettingsTab
                 onBackup={handleBackup}
@@ -610,7 +673,17 @@ export default function LifeCommandCenter() {
           </div>
         </main>
         
-        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
+        
+        {/* AI Command Button */}
+        <AICommandButton 
+          onAddTask={(day, task) => setTasks(prev => ({
+            ...prev,
+            [day]: [...(prev[day] || []), task]
+          }))}
+          onAddTransaction={(transaction) => setTransactions(prev => [...prev, transaction])}
+          onAddSavingsGoal={(goal) => setSavingsGoals(prev => [...prev, goal])}
+        />
         
         {/* Modals */}
         <Modal isOpen={modalConfig.isOpen} onClose={closeModal} title={getModalTitle()}>
