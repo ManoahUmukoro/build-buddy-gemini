@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+interface MaintenanceConfig {
+  enabled: boolean;
+  message: string;
+}
+
 interface AppSettings {
-  maintenance_mode: boolean;
-  maintenance_message: string;
+  maintenance_mode: MaintenanceConfig;
   modules: {
     dashboard: boolean;
     systems: boolean;
@@ -27,8 +31,10 @@ interface AppSettings {
 }
 
 const defaultSettings: AppSettings = {
-  maintenance_mode: false,
-  maintenance_message: 'We are currently performing maintenance. Please check back soon.',
+  maintenance_mode: {
+    enabled: false,
+    message: 'We are currently performing maintenance. Please check back soon.',
+  },
   modules: {
     dashboard: true,
     systems: true,
@@ -65,13 +71,18 @@ export function useAdminSettings() {
 
       const settingsMap: Record<string, any> = {};
       data?.forEach(item => {
-        // Value is already parsed by Supabase - no need for JSON.parse
         settingsMap[item.key] = item.value;
       });
 
+      // Parse maintenance_mode as JSON object { enabled, message }
+      const maintenanceConfig = settingsMap.maintenance_mode;
+      const parsedMaintenance: MaintenanceConfig = 
+        maintenanceConfig && typeof maintenanceConfig === 'object'
+          ? { enabled: maintenanceConfig.enabled ?? false, message: maintenanceConfig.message ?? '' }
+          : defaultSettings.maintenance_mode;
+
       setSettings({
-        maintenance_mode: settingsMap.maintenance_mode ?? defaultSettings.maintenance_mode,
-        maintenance_message: settingsMap.maintenance_message ?? defaultSettings.maintenance_message,
+        maintenance_mode: parsedMaintenance,
         modules: settingsMap.modules ?? defaultSettings.modules,
         notifications: settingsMap.notifications ?? defaultSettings.notifications,
         features: settingsMap.features ?? defaultSettings.features,
@@ -112,8 +123,8 @@ export function useAdminSettings() {
     loading,
     isModuleEnabled: (module: keyof AppSettings['modules']) => settings.modules[module],
     isFeatureEnabled: (feature: keyof AppSettings['features']) => settings.features[feature],
-    isMaintenanceMode: settings.maintenance_mode,
-    maintenanceMessage: settings.maintenance_message,
+    isMaintenanceMode: settings.maintenance_mode.enabled,
+    maintenanceMessage: settings.maintenance_mode.message,
     refetch: fetchSettings,
   };
 }
