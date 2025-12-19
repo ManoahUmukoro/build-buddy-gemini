@@ -79,12 +79,14 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
   );
 }
 
+
 interface MobileHeaderProps {
   alerts?: AlertItem[];
   onClearAlerts?: () => void;
+  onProfileClick?: () => void;
 }
 
-export function MobileHeader({ alerts = [], onClearAlerts }: MobileHeaderProps) {
+export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: MobileHeaderProps) {
   return (
     <div className="md:hidden bg-sidebar text-sidebar-foreground p-4 flex items-center justify-between sticky top-0 z-20 shadow-soft">
       <div className="flex items-center gap-2 font-bold text-lg">
@@ -94,12 +96,24 @@ export function MobileHeader({ alerts = [], onClearAlerts }: MobileHeaderProps) 
       <div className="flex items-center gap-1">
         <ThemeToggle />
         {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+        <button 
+          onClick={onProfileClick}
+          className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+        >
+          <User size={18} className="text-sidebar-foreground/60" />
+        </button>
       </div>
     </div>
   );
 }
 
-export function MobileNav({ activeTab, onTabChange }: Omit<SidebarProps, 'alerts' | 'onClearAlerts'>) {
+interface MobileNavProps {
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
+  onProfileClick?: () => void;
+}
+
+export function MobileNav({ activeTab, onTabChange, onProfileClick }: MobileNavProps) {
   // Show only main 5 items in mobile nav (excluding help and profile)
   const mobileNavItems = navItems.filter(item => item.id !== 'help' && item.id !== 'profile');
   
@@ -121,6 +135,18 @@ export function MobileNav({ activeTab, onTabChange }: Omit<SidebarProps, 'alerts
           </span>
         </button>
       ))}
+      {/* Profile button */}
+      <button
+        onClick={onProfileClick}
+        className={`flex flex-col items-center p-1.5 rounded-xl transition-all ${
+          false // Profile never highlighted in bottom nav
+            ? 'text-primary bg-primary/10' 
+            : 'text-muted-foreground'
+        }`}
+      >
+        <User size={20} strokeWidth={2} />
+        <span className="text-[9px] font-semibold mt-0.5">Profile</span>
+      </button>
     </nav>
   );
 }

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -18,9 +19,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MoreHorizontal, Search, UserPlus, Shield, Ban, Trash2, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, Search, UserPlus, Shield, Ban, RefreshCw, Plus, Loader2 } from 'lucide-react';
 
 interface UserData {
   id: string;
@@ -155,10 +170,91 @@ export default function AdminUsers() {
     }
   }
 
+  const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPlan, setNewUserPlan] = useState<'free' | 'pro'>('free');
+  const [addingUser, setAddingUser] = useState(false);
+  const [assignRoleDialogOpen, setAssignRoleDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user'>('user');
+
   const filteredUsers = users.filter(user =>
     user.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  async function handleAddUser() {
+    if (!newUserName.trim()) {
+      toast.error('Please enter a display name');
+      return;
+    }
+    
+    setAddingUser(true);
+    try {
+      // Create a temporary user ID (in real app, this would come from auth signup)
+      const tempUserId = crypto.randomUUID();
+      
+      // Create profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({ user_id: tempUserId, display_name: newUserName });
+      
+      if (profileError) throw profileError;
+      
+      // Create user plan
+      const { error: planError } = await supabase
+        .from('user_plans')
+        .insert({ user_id: tempUserId, plan: newUserPlan, status: 'active' });
+      
+      if (planError) throw planError;
+      
+      toast.success('User profile created');
+      setAddUserDialogOpen(false);
+      setNewUserName('');
+      setNewUserPlan('free');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error adding user:', err);
+      toast.error('Failed to add user');
+    } finally {
+      setAddingUser(false);
+    }
+  }
+
+  async function handleAssignRole() {
+    if (!selectedUserId) return;
+    
+    try {
+      if (selectedRole === 'user') {
+        // Remove all roles
+        const { error } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', selectedUserId);
+        
+        if (error) throw error;
+      } else {
+        // First delete existing roles then insert new
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', selectedUserId);
+        
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({ user_id: selectedUserId, role: selectedRole });
+        
+        if (error) throw error;
+      }
+      
+      toast.success(`Role updated to ${selectedRole}`);
+      setAssignRoleDialogOpen(false);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error assigning role:', err);
+      toast.error('Failed to assign role');
+    }
+  }
 
   return (
     <AdminLayout>
@@ -168,11 +264,80 @@ export default function AdminUsers() {
             <h1 className="text-2xl font-bold text-foreground">User Management</h1>
             <p className="text-muted-foreground">Manage all users and their access</p>
           </div>
-          <Button onClick={fetchUsers} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Dialog open={addUserDialogOpen} onOpenChange={setAddUserDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="userName">Display Name</Label>
+                    <Input
+                      id="userName"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      placeholder="Enter display name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="userPlan">Plan</Label>
+                    <Select value={newUserPlan} onValueChange={(v) => setNewUserPlan(v as 'free' | 'pro')}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="pro">Pro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleAddUser} disabled={addingUser} className="w-full">
+                    {addingUser ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                    Add User
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button onClick={fetchUsers} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
+
+        {/* Role Assignment Dialog */}
+        <Dialog open={assignRoleDialogOpen} onOpenChange={setAssignRoleDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Role</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Select Role</Label>
+                <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'admin' | 'moderator' | 'user')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User (No special permissions)</SelectItem>
+                    <SelectItem value="moderator">Moderator</SelectItem>
+                    <SelectItem value="admin">Admin (Full access)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleAssignRole} className="w-full">
+                Assign Role
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardHeader>
@@ -253,17 +418,14 @@ export default function AdminUsers() {
                                 <Ban className="h-4 w-4 mr-2" />
                                 {user.status === 'active' ? 'Suspend User' : 'Reactivate User'}
                               </DropdownMenuItem>
-                              {user.role === 'admin' ? (
-                                <DropdownMenuItem onClick={() => removeAdminRole(user.id)}>
-                                  <Shield className="h-4 w-4 mr-2" />
-                                  Remove Admin Role
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem onClick={() => assignAdminRole(user.id)}>
-                                  <Shield className="h-4 w-4 mr-2" />
-                                  Make Admin
-                                </DropdownMenuItem>
-                              )}
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedUserId(user.id);
+                                setSelectedRole(user.role as 'admin' | 'moderator' | 'user' || 'user');
+                                setAssignRoleDialogOpen(true);
+                              }}>
+                                <Shield className="h-4 w-4 mr-2" />
+                                Assign Role
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

@@ -1,10 +1,30 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Crown, Loader2, Check, CreditCard } from 'lucide-react';
+import { User, Mail, Crown, Loader2, Check, CreditCard, History, XCircle, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -16,6 +36,17 @@ declare global {
   }
 }
 
+interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  reference: string;
+  status: string;
+  payment_provider: string;
+  plan: string;
+  created_at: string;
+}
+
 export function ProfileTab() {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
@@ -25,12 +56,23 @@ export function ProfileTab() {
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [payingWithPaystack, setPayingWithPaystack] = useState(false);
   const [paystackLoaded, setPaystackLoaded] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [requestingNotifications, setRequestingNotifications] = useState(false);
 
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name);
     }
   }, [profile]);
+
+  useEffect(() => {
+    // Check notification permission
+    if ('Notification' in window) {
+      setNotificationsEnabled(Notification.permission === 'granted');
+    }
+  }, []);
 
   useEffect(() => {
     // Load Paystack script
@@ -41,7 +83,9 @@ export function ProfileTab() {
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
     };
   }, []);
 
@@ -68,6 +112,30 @@ export function ProfileTab() {
     fetchPlan();
   }, [user]);
 
+  useEffect(() => {
+    async function fetchPaymentHistory() {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('payment_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+        setPaymentHistory(data || []);
+      } catch (err) {
+        console.error('Error fetching payment history:', err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    }
+
+    fetchPaymentHistory();
+  }, [user]);
+
   async function handleSaveProfile() {
     if (!user) return;
 
@@ -85,6 +153,36 @@ export function ProfileTab() {
       toast.error('Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRequestNotifications() {
+    if (!('Notification' in window)) {
+      toast.error('Your browser does not support notifications');
+      return;
+    }
+
+    setRequestingNotifications(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        toast.success('Notifications enabled!');
+        // Test notification
+        new Notification('LifeOS Notifications', {
+          body: 'You will now receive task reminders',
+          icon: '/favicon.ico'
+        });
+      } else if (permission === 'denied') {
+        toast.error('Notification permission denied. Please enable in browser settings.');
+      } else {
+        toast.info('Please respond to the notification permission prompt');
+      }
+    } catch (err) {
+      console.error('Error requesting notifications:', err);
+      toast.error('Failed to enable notifications. Try in browser settings.');
+    } finally {
+      setRequestingNotifications(false);
     }
   }
 
@@ -115,19 +213,33 @@ export function ProfileTab() {
         return;
       }
 
+      const paymentRef = `lifeos_pro_${user.id}_${Date.now()}`;
+
       const handler = window.PaystackPop.setup({
         key: providers.paystack.public_key,
         email: user.email,
         amount: 500000, // Amount in kobo (5000 NGN = 500000 kobo)
         currency: 'NGN',
-        ref: `lifeos_pro_${user.id}_${Date.now()}`,
+        ref: paymentRef,
         metadata: {
           user_id: user.id,
           plan: 'pro',
         },
         callback: async (response: any) => {
-          // Payment successful - update user plan
+          // Payment successful - update user plan and record payment
           try {
+            // Record payment
+            await supabase.from('payment_history').insert({
+              user_id: user.id,
+              amount: 5000,
+              currency: 'NGN',
+              reference: paymentRef,
+              status: 'success',
+              payment_provider: 'paystack',
+              plan: 'pro'
+            });
+
+            // Update plan
             const { error: planError } = await supabase
               .from('user_plans')
               .upsert({ 
@@ -140,6 +252,15 @@ export function ProfileTab() {
             if (planError) throw planError;
 
             setUserPlan({ plan: 'pro', status: 'active' });
+            // Refresh payment history
+            const { data } = await supabase
+              .from('payment_history')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(10);
+            setPaymentHistory(data || []);
+            
             toast.success('Welcome to Pro! Your account has been upgraded.');
           } catch (err) {
             console.error('Error updating plan:', err);
@@ -161,6 +282,25 @@ export function ProfileTab() {
     }
   }
 
+  async function handleCancelSubscription() {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_plans')
+        .update({ plan: 'free', status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setUserPlan({ plan: 'free', status: 'cancelled' });
+      toast.success('Subscription cancelled. You can still use Pro features until the end of your billing period.');
+    } catch (err) {
+      console.error('Error cancelling subscription:', err);
+      toast.error('Failed to cancel subscription');
+    }
+  }
+
   if (profileLoading || loadingPlan) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -172,7 +312,7 @@ export function ProfileTab() {
   const isPro = userPlan?.plan === 'pro';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-20 md:pb-0">
+    <div className="max-w-2xl mx-auto space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-24 md:pb-0">
       {/* Profile Info */}
       <Card>
         <CardHeader>
@@ -225,6 +365,43 @@ export function ProfileTab() {
         </CardContent>
       </Card>
 
+      {/* Notifications */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+              {notificationsEnabled ? <Bell className="text-primary" size={24} /> : <BellOff className="text-muted-foreground" size={24} />}
+            </div>
+            <div>
+              <CardTitle>Browser Notifications</CardTitle>
+              <CardDescription>Get task reminders in your browser</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {notificationsEnabled 
+                  ? 'Notifications are enabled. You will receive task reminders.'
+                  : 'Enable notifications to receive task reminders.'}
+              </p>
+            </div>
+            {notificationsEnabled ? (
+              <Badge variant="default" className="bg-green-500">Enabled</Badge>
+            ) : (
+              <Button 
+                onClick={handleRequestNotifications}
+                disabled={requestingNotifications}
+                size="sm"
+              >
+                {requestingNotifications ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enable'}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Subscription Plan */}
       <Card>
         <CardHeader>
@@ -251,22 +428,45 @@ export function ProfileTab() {
               </p>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-success" />
+                  <Check size={16} className="text-green-500" />
                   AI Command Center
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-success" />
+                  <Check size={16} className="text-green-500" />
                   Advanced Analytics
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-success" />
+                  <Check size={16} className="text-green-500" />
                   Unlimited Entries
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Check size={16} className="text-success" />
+                  <Check size={16} className="text-green-500" />
                   Priority Support
                 </div>
               </div>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="gap-2 text-destructive hover:text-destructive">
+                    <XCircle size={16} />
+                    Cancel Subscription
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to cancel your Pro subscription? You'll lose access to premium features at the end of your billing period.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Yes, Cancel
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ) : (
             <div className="space-y-4">
@@ -320,6 +520,61 @@ export function ProfileTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Payment History */}
+      {paymentHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <History className="text-primary" size={24} />
+              </div>
+              <div>
+                <CardTitle>Payment History</CardTitle>
+                <CardDescription>Your recent transactions</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paymentHistory.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(payment.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="capitalize">{payment.plan}</TableCell>
+                        <TableCell>
+                          {payment.currency} {payment.amount.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={payment.status === 'success' ? 'default' : 'secondary'} className={payment.status === 'success' ? 'bg-green-500' : ''}>
+                            {payment.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

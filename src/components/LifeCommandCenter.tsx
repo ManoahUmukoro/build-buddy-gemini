@@ -649,7 +649,7 @@ export default function LifeCommandCenter() {
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
         
         <main className="flex-1 overflow-y-auto w-full pb-20 md:pb-0 min-h-screen">
-          <MobileHeader alerts={alerts} onClearAlerts={clearAlerts} />
+          <MobileHeader alerts={alerts} onClearAlerts={clearAlerts} onProfileClick={() => setActiveTab('profile')} />
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {activeTab === 'dashboard' && (
@@ -756,7 +756,7 @@ export default function LifeCommandCenter() {
           </div>
         </main>
         
-        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} onProfileClick={() => setActiveTab('profile')} />
         
         {/* AI Command Button */}
         <AICommandButton 
