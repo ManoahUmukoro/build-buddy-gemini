@@ -49,6 +49,16 @@ interface PaymentRecord {
   created_at: string;
 }
 
+interface PlanConfig {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  interval: string;
+  features: string[];
+  is_active: boolean;
+}
+
 export function ProfileTab() {
   const { user, signOut } = useAuth();
   const { isAdmin } = useAdminAuth();
@@ -67,6 +77,7 @@ export function ProfileTab() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [requestingNotifications, setRequestingNotifications] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<PlanConfig[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -118,6 +129,31 @@ export function ProfileTab() {
 
     fetchPlan();
   }, [user]);
+
+  // Fetch subscription plans from admin settings
+  useEffect(() => {
+    async function fetchSubscriptionPlans() {
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'subscription_plans')
+          .single();
+
+        if (error) throw error;
+
+        const plansData = typeof data?.value === 'string' 
+          ? JSON.parse(data.value) 
+          : data?.value || [];
+
+        setSubscriptionPlans(plansData.filter((p: PlanConfig) => p.is_active));
+      } catch (err) {
+        console.error('Error fetching subscription plans:', err);
+      }
+    }
+
+    fetchSubscriptionPlans();
+  }, []);
 
   useEffect(() => {
     async function fetchPaymentHistory() {
@@ -232,11 +268,16 @@ export function ProfileTab() {
 
       const paymentRef = `lifeos_pro_${user.id}_${Date.now()}`;
 
+      // Get pro plan price from admin settings
+      const proPlan = subscriptionPlans.find(p => p.id === 'pro' || p.name.toLowerCase() === 'pro');
+      const planPrice = proPlan?.price || 5000;
+      const planCurrency = proPlan?.currency || 'NGN';
+
       const handler = window.PaystackPop.setup({
         key: providers.paystack.public_key,
         email: user.email,
-        amount: 500000, // Amount in kobo (5000 NGN = 500000 kobo)
-        currency: 'NGN',
+        amount: planPrice * 100, // Convert to kobo
+        currency: planCurrency,
         ref: paymentRef,
         metadata: {
           user_id: user.id,
@@ -248,8 +289,8 @@ export function ProfileTab() {
             // Record payment
             await supabase.from('payment_history').insert({
               user_id: user.id,
-              amount: 5000,
-              currency: 'NGN',
+              amount: planPrice,
+              currency: planCurrency,
               reference: paymentRef,
               status: 'success',
               payment_provider: 'paystack',
@@ -562,30 +603,31 @@ export function ProfileTab() {
                     Upgrade to <strong>Pro</strong> to unlock all features.
                   </p>
                   
-                  <div className="bg-muted/50 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold">Pro Plan</span>
-                      <span className="text-2xl font-bold">₦5,000<span className="text-sm font-normal text-muted-foreground">/month</span></span>
-                    </div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-center gap-2">
-                        <Check size={14} className="text-primary" />
-                        AI-powered insights and chat
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={14} className="text-primary" />
-                        Advanced analytics dashboard
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={14} className="text-primary" />
-                        Unlimited journal entries & goals
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={14} className="text-primary" />
-                        Priority email support
-                      </li>
-                    </ul>
-                  </div>
+                  {(() => {
+                    const proPlan = subscriptionPlans.find(p => p.id === 'pro' || p.name.toLowerCase() === 'pro');
+                    const price = proPlan?.price || 5000;
+                    const currency = proPlan?.currency || 'NGN';
+                    const features = proPlan?.features || ['AI-powered insights and chat', 'Advanced analytics dashboard', 'Unlimited journal entries & goals', 'Priority email support'];
+                    const interval = proPlan?.interval || 'month';
+                    const currencySymbol = currency === 'NGN' ? '₦' : currency === 'USD' ? '$' : currency;
+                    
+                    return (
+                      <div className="bg-muted/50 p-4 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold">{proPlan?.name || 'Pro'} Plan</span>
+                          <span className="text-2xl font-bold">{currencySymbol}{price.toLocaleString()}<span className="text-sm font-normal text-muted-foreground">/{interval}</span></span>
+                        </div>
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                          {features.map((feature, i) => (
+                            <li key={i} className="flex items-center gap-2">
+                              <Check size={14} className="text-primary" />
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
 
                   <Button 
                     onClick={handleUpgradeToPro} 
