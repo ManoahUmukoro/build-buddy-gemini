@@ -266,9 +266,6 @@ export function useSupabaseData() {
       for (const task of toDelete) {
         await supabase.from('tasks').delete().eq('id', task.id);
       }
-      
-      // Reload to get proper UUIDs
-      await loadData();
     });
   };
 
@@ -388,8 +385,6 @@ export function useSupabaseData() {
         await supabase.from('habit_completions').delete().eq('habit_id', removed.id);
         await supabase.from('habits').delete().eq('id', removed.id);
       }
-
-      await loadData();
     });
   };
 
@@ -430,8 +425,6 @@ export function useSupabaseData() {
       for (const t of toDelete) {
         await supabase.from('transactions').delete().eq('id', t.id);
       }
-      
-      await loadData();
     });
   };
 
@@ -472,8 +465,6 @@ export function useSupabaseData() {
       for (const j of toDelete) {
         await supabase.from('journal_entries').delete().eq('id', j.id);
       }
-      
-      await loadData();
     });
   };
 
@@ -569,8 +560,6 @@ export function useSupabaseData() {
       for (const s of toDelete) {
         await supabase.from('subscriptions').delete().eq('id', s.id);
       }
-      
-      await loadData();
     });
   };
 
@@ -621,8 +610,6 @@ export function useSupabaseData() {
       for (const s of toDelete) {
         await supabase.from('savings_goals').delete().eq('id', s.id);
       }
-      
-      await loadData();
     });
   };
 

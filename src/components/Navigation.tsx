@@ -1,6 +1,7 @@
 import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle } from 'lucide-react';
 import { TabId, AlertItem } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -52,7 +53,10 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
             <CheckCircle2 size={16} />
             <span className="text-sm">System Online</span>
           </div>
-          {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+          </div>
         </div>
         <p className="text-[10px] text-sidebar-foreground/40 text-center">Powered by Webnexer</p>
       </div>
@@ -72,7 +76,10 @@ export function MobileHeader({ alerts = [], onClearAlerts }: MobileHeaderProps) 
         <Activity className="text-primary" size={18} />
         LifeOS
       </div>
-      {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+      </div>
     </div>
   );
 }
