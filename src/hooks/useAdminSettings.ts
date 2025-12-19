@@ -65,9 +65,8 @@ export function useAdminSettings() {
 
       const settingsMap: Record<string, any> = {};
       data?.forEach(item => {
-        settingsMap[item.key] = typeof item.value === 'string' 
-          ? JSON.parse(item.value) 
-          : item.value;
+        // Value is already parsed by Supabase - no need for JSON.parse
+        settingsMap[item.key] = item.value;
       });
 
       setSettings({
