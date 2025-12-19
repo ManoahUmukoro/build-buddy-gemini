@@ -1,9 +1,12 @@
-import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2 } from 'lucide-react';
-import { TabId } from '@/lib/types';
+import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle } from 'lucide-react';
+import { TabId, AlertItem } from '@/lib/types';
+import { NotificationBell } from '@/components/NotificationBell';
 
 interface SidebarProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
+  alerts?: AlertItem[];
+  onClearAlerts?: () => void;
 }
 
 const navItems = [
@@ -11,10 +14,11 @@ const navItems = [
   { id: 'systems' as TabId, icon: Target, label: 'Systems & Goals' },
   { id: 'finance' as TabId, icon: DollarSign, label: 'Finances' },
   { id: 'journal' as TabId, icon: Book, label: 'Journal' },
+  { id: 'help' as TabId, icon: HelpCircle, label: 'Help Center' },
   { id: 'settings' as TabId, icon: Settings, label: 'Data Vault' },
 ];
 
-export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 h-screen sticky top-0">
       <div className="mb-10">
@@ -42,11 +46,12 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         ))}
       </nav>
       
-      <div className="pt-6 border-t border-sidebar-border">
+      <div className="pt-6 border-t border-sidebar-border flex items-center justify-between">
         <div className="flex items-center gap-3 text-success">
           <CheckCircle2 size={16} />
           <span className="text-sm">System Online</span>
         </div>
+        {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
       </div>
     </aside>
   );
@@ -63,10 +68,13 @@ export function MobileHeader() {
   );
 }
 
-export function MobileNav({ activeTab, onTabChange }: SidebarProps) {
+export function MobileNav({ activeTab, onTabChange, alerts = [], onClearAlerts }: SidebarProps) {
+  // Show only main 5 items in mobile nav (excluding help)
+  const mobileNavItems = navItems.filter(item => item.id !== 'help');
+  
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t border-border flex justify-around p-3 pb-safe z-40">
-      {navItems.map(item => (
+      {mobileNavItems.map(item => (
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
@@ -82,6 +90,11 @@ export function MobileNav({ activeTab, onTabChange }: SidebarProps) {
           </span>
         </button>
       ))}
+      {onClearAlerts && (
+        <div className="flex flex-col items-center p-2">
+          <NotificationBell alerts={alerts} onClear={onClearAlerts} />
+        </div>
+      )}
     </nav>
   );
 }
