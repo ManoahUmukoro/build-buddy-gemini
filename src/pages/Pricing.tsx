@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Sparkles, ArrowLeft, Crown, Zap } from 'lucide-react';
+import { Check, Sparkles, ArrowLeft, Crown, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { toast } from 'sonner';
 
 interface PlanConfig {
   id: string;
@@ -18,8 +21,11 @@ interface PlanConfig {
 
 export default function Pricing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isPro, userPlan } = useEntitlements();
   const [plans, setPlans] = useState<PlanConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subscribing, setSubscribing] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchPlans() {
@@ -175,9 +181,56 @@ export default function Pricing() {
                     <Button 
                       className="w-full" 
                       variant={isPopular ? 'default' : 'outline'}
-                      onClick={() => navigate('/auth')}
+                      disabled={subscribing === plan.id || (user && userPlan === plan.id)}
+                      onClick={async () => {
+                        if (!user) {
+                          navigate('/auth');
+                          return;
+                        }
+                        if (plan.price === 0) {
+                          navigate('/');
+                          return;
+                        }
+                        // Initiate payment
+                        setSubscribing(plan.id);
+                        try {
+                          const { data, error } = await supabase.functions.invoke('init-payment', {
+                            body: {
+                              email: user.email,
+                              amount: plan.price,
+                              currency: plan.currency,
+                              plan: plan.id,
+                              provider: 'paystack', // Default to Paystack
+                            },
+                          });
+                          
+                          if (error) throw error;
+                          
+                          if (data?.authorization_url) {
+                            // Store reference for callback
+                            localStorage.setItem('payment_reference', data.reference);
+                            localStorage.setItem('payment_provider', 'paystack');
+                            window.location.href = data.authorization_url;
+                          } else {
+                            throw new Error('No payment URL received');
+                          }
+                        } catch (err: any) {
+                          console.error('Payment error:', err);
+                          toast.error(err.message || 'Failed to initiate payment');
+                        } finally {
+                          setSubscribing(null);
+                        }
+                      }}
                     >
-                      {plan.price === 0 ? 'Get Started' : 'Subscribe Now'}
+                      {subscribing === plan.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : user && userPlan === plan.id ? (
+                        'Current Plan'
+                      ) : plan.price === 0 ? (
+                        'Get Started'
+                      ) : (
+                        'Subscribe Now'
+                      )}
                     </Button>
                   </CardFooter>
                 </Card>

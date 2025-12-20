@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { 
   TrendingUp, DollarSign, Wallet, Plus, Edit2, Trash2, X, 
   Sparkles, Loader2, MessageCircle, RefreshCw, Wand2, CreditCard, PiggyBank, Receipt,
-  ArrowUpCircle, ArrowDownCircle, History, CalendarDays
+  ArrowUpCircle, ArrowDownCircle, History, CalendarDays, Crown
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction, Subscription, Budget, ChatMessage, SavingsGoal } from '@/lib/types';
@@ -10,11 +10,15 @@ import { formatCurrency } from '@/lib/formatters';
 import { CHART_COLORS } from '@/lib/constants';
 import { Modal } from '@/components/Modal';
 import { ChatInterface } from '@/components/ChatInterface';
+import { SavingsEntriesHistory } from '@/components/SavingsEntriesHistory';
 import { useSavingsEntries, SavingsEntry } from '@/hooks/useSavingsEntries';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { FeatureGate } from '@/components/FeatureGate';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Link } from 'react-router-dom';
 
 interface FinanceTabProps {
   transactions: Transaction[];
@@ -100,6 +104,8 @@ export function FinanceTab({
   const [isFinanceChatOpen, setIsFinanceChatOpen] = useState(false);
   const [financeTab, setFinanceTab] = useState<FinanceSubTab>('overview');
   const [financeMonthFilter, setFinanceMonthFilter] = useState(new Date().toISOString().slice(0, 7));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { canScanReceipts, canAutoCategorize, canUseAI, isPro } = useEntitlements();
 
   const filteredTransactions = transactions.filter(t => t.date.startsWith(financeMonthFilter));
 
@@ -136,9 +142,11 @@ export function FinanceTab({
     toast.success("Budgets allocated (50/30/20)!");
   };
 
-  const handleTransactionSubmit = (e: React.FormEvent) => {
+  const handleTransactionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTransaction.amount || !newTransaction.description || !newTransaction.date) return;
+    if (!newTransaction.amount || !newTransaction.description || !newTransaction.date || isSubmitting) return;
+    
+    setIsSubmitting(true);
     
     const tData = {
       ...newTransaction,
@@ -165,6 +173,7 @@ export function FinanceTab({
       description: '',
       date: new Date().toISOString().split('T')[0]
     });
+    setIsSubmitting(false);
   };
 
   const handleSavingsUpdate = (goalId: string | number, amount: number, operation: 'deposit' | 'withdraw') => {
@@ -252,10 +261,18 @@ export function FinanceTab({
                   <h3 className="font-bold text-card-foreground text-sm md:text-base">
                     {editingTransactionId ? 'Edit Record' : 'Add Transaction'}
                   </h3>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-primary">
+                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${
+                    canScanReceipts ? 'text-muted-foreground hover:text-primary' : 'text-muted-foreground/50'
+                  }`}>
                     <Receipt size={14} />
                     {isScanningReceipt ? <Loader2 className="animate-spin" size={14} /> : 'Scan Receipt'}
-                    <input type="file" accept="image/*" onChange={onReceiptScan} className="hidden" />
+                    {canScanReceipts ? (
+                      <input type="file" accept="image/*" onChange={onReceiptScan} className="hidden" />
+                    ) : (
+                      <Link to="/pricing" className="text-xs text-primary ml-1">
+                        <Crown size={12} className="inline text-yellow-500" />
+                      </Link>
+                    )}
                   </label>
                 </div>
                 <form onSubmit={handleTransactionSubmit} className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-4">
@@ -318,11 +335,16 @@ export function FinanceTab({
                         />
                         <button 
                           type="button" 
-                          onClick={onAutoCategorize} 
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-primary/60 hover:text-primary p-1" 
-                          title="Auto-Categorize"
+                          onClick={canAutoCategorize ? onAutoCategorize : undefined} 
+                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 ${
+                            canAutoCategorize ? 'text-primary/60 hover:text-primary' : 'text-muted-foreground/30'
+                          }`}
+                          title={canAutoCategorize ? "Auto-Categorize" : "Pro feature"}
+                          disabled={!canAutoCategorize}
                         >
-                          {isCategorizing ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                          {isCategorizing ? <Loader2 className="animate-spin" size={16} /> : (
+                            canAutoCategorize ? <Wand2 size={16} /> : <Crown size={16} className="text-yellow-500/50" />
+                          )}
                         </button>
                       </div>
                     </>
@@ -342,11 +364,12 @@ export function FinanceTab({
                   <div className="col-span-2 md:col-span-12">
                     <button 
                       type="submit" 
-                      className={`w-full py-2.5 md:py-3 rounded-lg font-medium text-sm md:text-base text-secondary-foreground ${
+                      disabled={isSubmitting}
+                      className={`w-full py-2.5 md:py-3 rounded-lg font-medium text-sm md:text-base text-secondary-foreground disabled:opacity-50 ${
                         editingTransactionId ? 'bg-primary' : 'bg-secondary'
                       }`}
                     >
-                      {editingTransactionId ? 'Update' : 'Add'}
+                      {isSubmitting ? <Loader2 className="animate-spin mx-auto" size={18} /> : editingTransactionId ? 'Update' : 'Add'}
                     </button>
                   </div>
                 </form>
@@ -600,7 +623,12 @@ export function FinanceTab({
                       <div className="flex-1">
                         <h4 className="font-bold text-xl text-card-foreground">{goal.name}</h4>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <SavingsEntriesHistory
+                          goalId={String(goal.id)}
+                          goalName={goal.name}
+                          currency={currency}
+                        />
                         <button 
                           onClick={() => onOpenModal('editSavingsDeposit', { id: goal.id, current: goal.current, name: goal.name })} 
                           className="bg-card border border-primary/20 text-primary px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-primary/10 transition-colors"
