@@ -681,10 +681,6 @@ export default function LifeCommandCenter() {
                 balance={balance}
                 currency={currency}
                 dailyBriefing={dailyBriefing}
-                pomodoroActive={pomodoroActive}
-                pomodoroTime={pomodoroTime}
-                setPomodoroActive={setPomodoroActive}
-                setPomodoroTime={setPomodoroTime}
                 sortingDay={sortingDay}
                 breakingDownTask={breakingDownTask}
                 onSmartSort={handleSmartSort}
