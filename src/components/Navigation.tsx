@@ -6,6 +6,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useAdminSettings, ModulesConfig } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SidebarProps {
@@ -19,27 +20,18 @@ interface NavItem {
   id: TabId;
   icon: LucideIcon;
   label: string;
+  moduleKey?: keyof ModulesConfig;
 }
 
 const defaultNavItems: NavItem[] = [
-  { id: 'dashboard' as TabId, icon: Calendar, label: 'Planner' },
-  { id: 'systems' as TabId, icon: Target, label: 'Systems & Goals' },
-  { id: 'finance' as TabId, icon: DollarSign, label: 'Finances' },
-  { id: 'journal' as TabId, icon: Book, label: 'Journal' },
-  { id: 'help' as TabId, icon: HelpCircle, label: 'Help Center' },
+  { id: 'dashboard' as TabId, icon: Calendar, label: 'Planner', moduleKey: 'dashboard' },
+  { id: 'systems' as TabId, icon: Target, label: 'Systems & Goals', moduleKey: 'systems' },
+  { id: 'finance' as TabId, icon: DollarSign, label: 'Finances', moduleKey: 'finance' },
+  { id: 'journal' as TabId, icon: Book, label: 'Journal', moduleKey: 'journal' },
+  { id: 'help' as TabId, icon: HelpCircle, label: 'Help Center', moduleKey: 'help' },
   { id: 'profile' as TabId, icon: User, label: 'Profile' },
-  { id: 'settings' as TabId, icon: Settings, label: 'Data Vault' },
+  { id: 'settings' as TabId, icon: Settings, label: 'Settings' },
 ];
-
-const iconMap: Record<string, LucideIcon> = {
-  Calendar,
-  Target,
-  DollarSign,
-  Book,
-  HelpCircle,
-  User,
-  Settings,
-};
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -50,6 +42,7 @@ function getGreeting(): string {
 
 function useNavItems() {
   const [navItems, setNavItems] = useState<NavItem[]>(defaultNavItems);
+  const { modules, loading: settingsLoading } = useAdminSettings();
 
   useEffect(() => {
     async function fetchNavOrder() {
@@ -62,24 +55,36 @@ function useNavItems() {
 
         if (error && error.code !== 'PGRST116') throw error;
 
+        let orderedItems = [...defaultNavItems];
+
         if (data?.value) {
           const config = data.value as { nav_order?: string[] };
           if (config.nav_order && Array.isArray(config.nav_order)) {
             // Reorder items based on nav_order
-            const orderedItems: NavItem[] = [];
+            const reorderedItems: NavItem[] = [];
             config.nav_order.forEach((id: string) => {
               const item = defaultNavItems.find(i => i.id === id);
-              if (item) orderedItems.push(item);
+              if (item) reorderedItems.push(item);
             });
             // Add any items not in the order at the end
             defaultNavItems.forEach(item => {
-              if (!orderedItems.find(i => i.id === item.id)) {
-                orderedItems.push(item);
+              if (!reorderedItems.find(i => i.id === item.id)) {
+                reorderedItems.push(item);
               }
             });
-            setNavItems(orderedItems);
+            orderedItems = reorderedItems;
           }
         }
+
+        // Filter out disabled modules
+        if (!settingsLoading) {
+          orderedItems = orderedItems.filter(item => {
+            if (!item.moduleKey) return true; // No module key = always show
+            return modules[item.moduleKey];
+          });
+        }
+
+        setNavItems(orderedItems);
       } catch (err) {
         console.error('Error fetching nav order:', err);
       }
@@ -96,7 +101,6 @@ function useNavItems() {
           event: '*',
           schema: 'public',
           table: 'admin_settings',
-          filter: 'key=eq.ui_layout_config',
         },
         () => {
           fetchNavOrder();
@@ -107,7 +111,7 @@ function useNavItems() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [modules, settingsLoading]);
 
   return navItems;
 }
@@ -228,7 +232,7 @@ interface MobileNavProps {
 export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   const navItems = useNavItems();
   
-  // Show main 5 items plus help (excluding profile and settings)
+  // Show main items excluding profile and settings
   const mobileNavItems = navItems.filter(item => 
     item.id !== 'profile' && item.id !== 'settings'
   );

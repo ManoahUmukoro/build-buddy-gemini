@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, CreditCard, Activity, TrendingUp } from 'lucide-react';
+import { Users, CreditCard, Activity, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Stats {
@@ -23,25 +23,48 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Get user plans count
-        const { data: plans, error } = await supabase
-          .from('user_plans')
-          .select('plan, status');
+        // Use edge function to get real user stats
+        const { data: session } = await supabase.auth.getSession();
+        if (!session?.session?.access_token) {
+          throw new Error('No session');
+        }
+
+        const { data, error } = await supabase.functions.invoke('admin-get-users', {
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
+        });
 
         if (error) throw error;
 
-        const proUsers = plans?.filter(p => p.plan === 'pro').length || 0;
-        const activeUsers = plans?.filter(p => p.status === 'active').length || 0;
-        const totalUsers = plans?.length || 0;
-
-        setStats({
-          totalUsers,
-          activeUsers,
-          proUsers,
-          freeUsers: totalUsers - proUsers,
-        });
+        if (data?.stats) {
+          setStats(data.stats);
+        }
       } catch (err) {
         console.error('Error fetching stats:', err);
+        // Fallback to local query if edge function fails
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id');
+          
+          const { data: plans } = await supabase
+            .from('user_plans')
+            .select('user_id, plan, status');
+
+          const totalUsers = profiles?.length || 0;
+          const proUsers = plans?.filter(p => p.plan === 'pro').length || 0;
+          const activeUsers = plans?.filter(p => p.status === 'active').length || 0;
+
+          setStats({
+            totalUsers,
+            activeUsers,
+            proUsers,
+            freeUsers: totalUsers - proUsers,
+          });
+        } catch (fallbackErr) {
+          console.error('Fallback query failed:', fallbackErr);
+        }
       } finally {
         setLoading(false);
       }
@@ -102,7 +125,11 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? '...' : stat.value}
+                  {loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    stat.value
+                  )}
                 </div>
               </CardContent>
             </Card>
