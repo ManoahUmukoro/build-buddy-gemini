@@ -1,8 +1,30 @@
-import { useState } from 'react';
-import { Settings, Download, Upload, Key, Check, X, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { 
+  Settings, Download, Upload, Key, Check, X, Eye, EyeOff, User, Bell, 
+  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SettingsTabProps {
   onBackup: () => void;
@@ -11,25 +33,112 @@ interface SettingsTabProps {
   onSaveApiKey: (key: string) => void;
 }
 
+interface UserPreferences {
+  theme: 'light' | 'dark' | 'system';
+  currency: string;
+  week_start: 'sunday' | 'monday';
+}
+
+interface UserNotifications {
+  email_enabled: boolean;
+  push_enabled: boolean;
+  daily_digest: boolean;
+  weekly_digest: boolean;
+}
+
+const defaultPreferences: UserPreferences = {
+  theme: 'system',
+  currency: '₦',
+  week_start: 'monday',
+};
+
+const defaultNotifications: UserNotifications = {
+  email_enabled: true,
+  push_enabled: false,
+  daily_digest: true,
+  weekly_digest: true,
+};
+
 export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }: SettingsTabProps) {
+  const { user } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  
+  const [displayName, setDisplayName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  
   const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  
+  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
+  const [notifications, setNotifications] = useState<UserNotifications>(defaultNotifications);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  
+  const [userPlan, setUserPlan] = useState<string>('free');
 
+  // Load profile data
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name);
+      setAvatarUrl((profile as any).avatar_url || null);
+    }
+  }, [profile]);
+
+  // Load user settings
+  useEffect(() => {
+    async function loadSettings() {
+      if (!user) return;
+      
+      try {
+        const [settingsRes, planRes] = await Promise.all([
+          supabase.from('user_settings').select('preferences, notifications').eq('user_id', user.id).maybeSingle(),
+          supabase.from('user_plans').select('plan').eq('user_id', user.id).maybeSingle()
+        ]);
+
+        if (settingsRes.data) {
+          const prefs = settingsRes.data.preferences;
+          const notifs = settingsRes.data.notifications;
+          if (prefs && typeof prefs === 'object') {
+            setPreferences({ ...defaultPreferences, ...(prefs as any) });
+          }
+          if (notifs && typeof notifs === 'object') {
+            setNotifications({ ...defaultNotifications, ...(notifs as any) });
+          }
+        }
+        
+        if (planRes.data) {
+          setUserPlan(planRes.data.plan);
+        }
+      } catch (err) {
+        console.error('Error loading settings:', err);
+      } finally {
+        setLoadingSettings(false);
+      }
+    }
+
+    loadSettings();
+  }, [user]);
+
+  // Save API key
   const handleSaveApiKey = async () => {
-    setIsSaving(true);
+    setSavingApiKey(true);
     try {
       await onSaveApiKey(apiKeyInput);
       toast.success('API key saved successfully');
     } catch (error) {
       toast.error('Failed to save API key');
     } finally {
-      setIsSaving(false);
+      setSavingApiKey(false);
     }
   };
 
   const handleRemoveApiKey = async () => {
-    setIsSaving(true);
+    setSavingApiKey(true);
     try {
       await onSaveApiKey('');
       setApiKeyInput('');
@@ -37,111 +146,544 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
     } catch (error) {
       toast.error('Failed to remove API key');
     } finally {
-      setIsSaving(false);
+      setSavingApiKey(false);
     }
   };
 
-  const isConnected = !!geminiApiKey;
+  // Save profile
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setSavingProfile(true);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: displayName, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      toast.success('Profile updated');
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      toast.error('Failed to update profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // Handle avatar upload
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile with avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      toast.success('Profile picture updated!');
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      toast.error('Failed to upload profile picture');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  // Save preferences and notifications
+  const handleSaveSettings = async () => {
+    if (!user) return;
+    setSavingSettings(true);
+    
+    try {
+      // Check if user_settings exists
+      const { data: existing } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from('user_settings')
+          .update({
+            preferences: preferences as any,
+            notifications: notifications as any,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_settings')
+          .insert({
+            user_id: user.id,
+            preferences: preferences as any,
+            notifications: notifications as any,
+          });
+        if (error) throw error;
+      }
+      toast.success('Settings saved');
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      toast.error('Failed to save settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  // Request browser notifications
+  const handleRequestPush = async () => {
+    if (!('Notification' in window)) {
+      toast.error('Your browser does not support notifications');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      setNotifications(prev => ({ ...prev, push_enabled: true }));
+      toast.success('Push notifications enabled!');
+      new Notification('LifeOS', { body: 'Notifications are now enabled!', icon: '/favicon.ico' });
+    } else {
+      toast.error('Please enable notifications in your browser settings');
+    }
+  };
+
+  // Account reset
+  const handleResetAccount = async () => {
+    if (!user) return;
+    
+    try {
+      // Delete user data but keep profile
+      await Promise.all([
+        supabase.from('tasks').delete().eq('user_id', user.id),
+        supabase.from('transactions').delete().eq('user_id', user.id),
+        supabase.from('journal_entries').delete().eq('user_id', user.id),
+        supabase.from('habits').delete().eq('user_id', user.id),
+        supabase.from('systems').delete().eq('user_id', user.id),
+        supabase.from('savings_goals').delete().eq('user_id', user.id),
+      ]);
+      
+      toast.success('Account data has been reset');
+    } catch (err) {
+      console.error('Error resetting account:', err);
+      toast.error('Failed to reset account');
+    }
+  };
+
+  const isApiKeyConnected = !!geminiApiKey;
+
+  if (loadingSettings || profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 px-2 md:px-0 mt-4 md:mt-10 pb-20 md:pb-0">
-      {/* AI Configuration */}
-      <div className="bg-card p-4 md:p-8 rounded-3xl shadow-card border border-border">
-        <div className="flex items-center gap-3 mb-4 md:mb-6">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Key className="text-primary" size={20} />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-base md:text-xl font-bold text-card-foreground">Gemini AI</h3>
-            <p className="text-xs md:text-sm text-muted-foreground">Connect your Gemini API key for AI features</p>
-          </div>
-        </div>
+    <div className="max-w-2xl mx-auto space-y-4 px-2 md:px-0 mt-4 md:mt-6 pb-24 md:pb-0">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-foreground">Settings</h2>
+        <p className="text-muted-foreground text-sm">Manage your preferences and account</p>
+      </div>
 
-        <div className="space-y-3 md:space-y-4">
-          <div className="flex items-center gap-2 text-xs md:text-sm">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-success' : 'bg-muted-foreground'}`} />
-            <span className={isConnected ? 'text-success' : 'text-muted-foreground'}>
-              {isConnected ? 'Connected' : 'Not connected'}
-            </span>
-          </div>
+      <Tabs defaultValue="account" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="account" className="text-xs md:text-sm py-2">Account</TabsTrigger>
+          <TabsTrigger value="preferences" className="text-xs md:text-sm py-2">Preferences</TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs md:text-sm py-2">Notifications</TabsTrigger>
+          <TabsTrigger value="data" className="text-xs md:text-sm py-2">Data</TabsTrigger>
+        </TabsList>
 
-          <div className="relative">
-            <Input
-              type={showApiKey ? 'text' : 'password'}
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="Enter your Gemini API key"
-              className="pr-10 h-10 md:h-12 bg-muted border-0 rounded-xl text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
+        {/* Account Tab */}
+        <TabsContent value="account" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User size={18} />
+                Profile
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Avatar */}
+              <div className="flex items-center gap-4">
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center cursor-pointer group overflow-hidden"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="animate-spin text-primary" size={24} />
+                  ) : avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="text-primary" size={32} />
+                  )}
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="text-white" size={20} />
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium">Profile Picture</p>
+                  <p className="text-xs text-muted-foreground">Click to upload</p>
+                </div>
+              </div>
 
-          <div className="flex gap-2">
-            <Button
-              onClick={handleSaveApiKey}
-              disabled={isSaving || !apiKeyInput || apiKeyInput === geminiApiKey}
-              className="flex-1 gap-2 h-10 md:h-11 text-sm"
-            >
-              <Check size={14} />
-              Save Key
-            </Button>
-            {isConnected && (
-              <Button
-                variant="outline"
-                onClick={handleRemoveApiKey}
-                disabled={isSaving}
-                className="gap-2 h-10 md:h-11 text-sm"
-              >
-                <X size={14} />
-                Remove
+              {/* Name */}
+              <div className="space-y-2">
+                <Label>Display Name</Label>
+                <Input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your name"
+                />
+              </div>
+
+              {/* Email (read-only) */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Mail size={14} />
+                  Email
+                </Label>
+                <Input value={user?.email || ''} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              </div>
+
+              <Button onClick={handleSaveProfile} disabled={savingProfile || displayName === profile?.display_name}>
+                {savingProfile ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
+                Save Profile
               </Button>
-            )}
-          </div>
+            </CardContent>
+          </Card>
 
-          <p className="text-xs text-muted-foreground bg-muted p-2.5 md:p-3 rounded-lg">
-            💡 Get your free API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a>. AI features require a valid Gemini API key.
-          </p>
-        </div>
-      </div>
+          {/* Plan */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Crown size={18} />
+                Subscription
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium capitalize">{userPlan} Plan</p>
+                  <p className="text-xs text-muted-foreground">
+                    {userPlan === 'pro' ? 'Full access to all features' : 'Upgrade for more features'}
+                  </p>
+                </div>
+                {userPlan !== 'pro' && (
+                  <Button variant="default" size="sm" asChild>
+                    <a href="/pricing">Upgrade</a>
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Data Vault */}
-      <div className="bg-card p-6 md:p-10 rounded-3xl shadow-card border border-border text-center">
-        <div className="w-12 h-12 md:w-16 md:h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6">
-          <Settings className="text-muted-foreground" size={24} />
-        </div>
-        <h3 className="text-xl md:text-2xl font-bold text-card-foreground mb-2">Data Vault</h3>
-        <p className="text-sm md:text-base text-muted-foreground mb-6 md:mb-10 max-w-sm mx-auto">
-          Your data is stored securely in the cloud. Use these tools to export or import your data.
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <button 
-            onClick={onBackup} 
-            className="flex flex-col items-center justify-center p-5 md:p-8 border-2 border-border rounded-2xl hover:border-primary hover:bg-primary/5 transition-all group bg-muted/50"
-          >
-            <div className="w-10 h-10 md:w-14 md:h-14 bg-card rounded-full flex items-center justify-center mb-3 md:mb-4 group-hover:scale-110 transition-transform shadow-soft text-primary">
-              <Download size={20} className="md:w-6 md:h-6" />
-            </div>
-            <span className="font-bold text-card-foreground text-sm md:text-base">Backup Data</span>
-            <span className="text-xs text-muted-foreground mt-1">Download JSON file</span>
-          </button>
-          
-          <label className="flex flex-col items-center justify-center p-5 md:p-8 border-2 border-border rounded-2xl hover:border-success hover:bg-success/5 transition-all group cursor-pointer bg-muted/50">
-            <div className="w-10 h-10 md:w-14 md:h-14 bg-card rounded-full flex items-center justify-center mb-3 md:mb-4 group-hover:scale-110 transition-transform shadow-soft text-success">
-              <Upload size={20} className="md:w-6 md:h-6" />
-            </div>
-            <span className="font-bold text-card-foreground text-sm md:text-base">Restore Data</span>
-            <span className="text-xs text-muted-foreground mt-1">Upload JSON file</span>
-            <input type="file" accept=".json" onChange={onRestore} className="hidden" />
-          </label>
-        </div>
-      </div>
+          {/* AI Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key size={18} />
+                AI Configuration
+              </CardTitle>
+              <CardDescription>Connect your Gemini API key for AI features</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${isApiKeyConnected ? 'bg-green-500' : 'bg-muted-foreground'}`} />
+                <span className={isApiKeyConnected ? 'text-green-600' : 'text-muted-foreground'}>
+                  {isApiKeyConnected ? 'Connected' : 'Not connected'}
+                </span>
+              </div>
+
+              <div className="relative">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Enter your Gemini API key"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveApiKey} disabled={savingApiKey || !apiKeyInput || apiKeyInput === geminiApiKey} className="flex-1">
+                  <Check size={14} className="mr-2" />
+                  Save Key
+                </Button>
+                {isApiKeyConnected && (
+                  <Button variant="outline" onClick={handleRemoveApiKey} disabled={savingApiKey}>
+                    <X size={14} className="mr-2" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
+                💡 Get your free API key from{' '}
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  Google AI Studio
+                </a>
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Preferences Tab */}
+        <TabsContent value="preferences" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette size={18} />
+                Display
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Theme</Label>
+                <Select 
+                  value={preferences.theme} 
+                  onValueChange={(v) => setPreferences(prev => ({ ...prev, theme: v as any }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="system">System</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe size={18} />
+                Regional
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Select 
+                  value={preferences.currency} 
+                  onValueChange={(v) => setPreferences(prev => ({ ...prev, currency: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="₦">₦ Naira (NGN)</SelectItem>
+                    <SelectItem value="$">$ Dollar (USD)</SelectItem>
+                    <SelectItem value="€">€ Euro (EUR)</SelectItem>
+                    <SelectItem value="£">£ Pound (GBP)</SelectItem>
+                    <SelectItem value="₹">₹ Rupee (INR)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Week Starts On</Label>
+                <Select 
+                  value={preferences.week_start} 
+                  onValueChange={(v) => setPreferences(prev => ({ ...prev, week_start: v as any }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sunday">Sunday</SelectItem>
+                    <SelectItem value="monday">Monday</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button onClick={handleSaveSettings} disabled={savingSettings}>
+                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
+                Save Preferences
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell size={18} />
+                Notification Preferences
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Email Notifications</p>
+                  <p className="text-xs text-muted-foreground">Receive updates via email</p>
+                </div>
+                <Switch
+                  checked={notifications.email_enabled}
+                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, email_enabled: v }))}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Push Notifications</p>
+                  <p className="text-xs text-muted-foreground">Browser notifications for reminders</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!notifications.push_enabled && (
+                    <Button variant="outline" size="sm" onClick={handleRequestPush}>
+                      Enable
+                    </Button>
+                  )}
+                  <Switch
+                    checked={notifications.push_enabled}
+                    onCheckedChange={(v) => setNotifications(prev => ({ ...prev, push_enabled: v }))}
+                    disabled={!('Notification' in window) || Notification.permission !== 'granted'}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Daily Digest</p>
+                  <p className="text-xs text-muted-foreground">Morning summary of your day</p>
+                </div>
+                <Switch
+                  checked={notifications.daily_digest}
+                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, daily_digest: v }))}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Weekly Digest</p>
+                  <p className="text-xs text-muted-foreground">Weekly progress report</p>
+                </div>
+                <Switch
+                  checked={notifications.weekly_digest}
+                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, weekly_digest: v }))}
+                />
+              </div>
+
+              <Button onClick={handleSaveSettings} disabled={savingSettings}>
+                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
+                Save Notifications
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Data Tab */}
+        <TabsContent value="data" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings size={18} />
+                Data Vault
+              </CardTitle>
+              <CardDescription>Export or import your data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={onBackup} 
+                  className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-xl hover:border-primary hover:bg-primary/5 transition-all group"
+                >
+                  <Download size={24} className="text-primary mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="font-medium text-sm">Backup</span>
+                  <span className="text-xs text-muted-foreground">Download JSON</span>
+                </button>
+                
+                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-xl hover:border-green-500 hover:bg-green-500/5 transition-all group cursor-pointer">
+                  <Upload size={24} className="text-green-500 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="font-medium text-sm">Restore</span>
+                  <span className="text-xs text-muted-foreground">Upload JSON</span>
+                  <input type="file" accept=".json" onChange={onRestore} className="hidden" />
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle size={18} />
+                Danger Zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                    <Trash2 size={16} className="mr-2" />
+                    Reset Account Data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all your tasks, transactions, journal entries, and goals. Your profile and settings will be preserved.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Yes, Reset Everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <p className="text-xs text-muted-foreground text-center">
+                This action cannot be undone. Make a backup first.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
