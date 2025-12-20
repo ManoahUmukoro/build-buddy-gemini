@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -31,7 +30,8 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2, Plus, Edit, Trash2, GripVertical } from 'lucide-react';
+import { Save, Loader2, Plus, Edit, Trash2 } from 'lucide-react';
+import { MarkdownEditor } from '@/components/MarkdownEditor';
 
 interface HelpContent {
   id: string;
@@ -204,13 +204,12 @@ export default function AdminHelp() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="article-content">Content</Label>
-                  <Textarea
-                    id="article-content"
-                    rows={10}
+                  <Label htmlFor="article-content">Content (Markdown supported)</Label>
+                  <MarkdownEditor
                     value={editItem?.content || ''}
-                    onChange={(e) => setEditItem(prev => prev ? { ...prev, content: e.target.value } : null)}
-                    placeholder="Supports markdown formatting..."
+                    onChange={(value) => setEditItem(prev => prev ? { ...prev, content: value } : null)}
+                    placeholder="Write help article content with markdown formatting..."
+                    rows={12}
                   />
                 </div>
                 <div className="flex items-center justify-between">

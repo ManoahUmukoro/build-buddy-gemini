@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2, Settings, Bell, Shield, ToggleLeft, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { Save, Loader2, Settings, Bell, Shield, ToggleLeft, Megaphone, Plus, Trash2, Palette, MessageSquare } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -24,8 +24,21 @@ interface MaintenanceConfig {
   message: string;
 }
 
+interface BrandingConfig {
+  app_name: string;
+  logo_url: string;
+}
+
+interface SupportWidgetConfig {
+  enabled: boolean;
+  provider: string;
+  propertyId: string;
+}
+
 interface AppSettings {
   maintenance_mode: MaintenanceConfig;
+  branding: BrandingConfig;
+  support_widget: SupportWidgetConfig;
   modules: {
     dashboard: boolean;
     systems: boolean;
@@ -61,6 +74,15 @@ export default function AdminSettings() {
     maintenance_mode: {
       enabled: false,
       message: 'We are currently performing maintenance. Please check back soon.',
+    },
+    branding: {
+      app_name: 'LifeOS',
+      logo_url: '',
+    },
+    support_widget: {
+      enabled: false,
+      provider: 'tawkto',
+      propertyId: '',
     },
     modules: {
       dashboard: true,
@@ -117,6 +139,8 @@ export default function AdminSettings() {
 
       setSettings({
         maintenance_mode: parsedMaintenance,
+        branding: settingsMap.branding ?? { app_name: 'LifeOS', logo_url: '' },
+        support_widget: settingsMap.support_widget ?? { enabled: false, provider: 'tawkto', propertyId: '' },
         modules: settingsMap.modules ?? settings.modules,
         notifications: settingsMap.notifications ?? settings.notifications,
         features: settingsMap.features ?? settings.features,
@@ -137,6 +161,8 @@ export default function AdminSettings() {
 
       const updates = [
         { key: 'maintenance_mode', value: settings.maintenance_mode },
+        { key: 'branding', value: settings.branding },
+        { key: 'support_widget', value: settings.support_widget },
         { key: 'modules', value: settings.modules },
         { key: 'notifications', value: settings.notifications },
         { key: 'features', value: settings.features },
@@ -249,10 +275,18 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto gap-1 p-1">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7 h-auto gap-1 p-1">
             <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Settings className="h-4 w-4" />
               <span className="hidden xs:inline sm:inline">General</span>
+            </TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <Palette className="h-4 w-4" />
+              <span className="hidden xs:inline sm:inline">Branding</span>
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden xs:inline sm:inline">Support</span>
             </TabsTrigger>
             <TabsTrigger value="modules" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <ToggleLeft className="h-4 w-4" />
@@ -266,9 +300,9 @@ export default function AdminSettings() {
               <Bell className="h-4 w-4" />
               <span className="hidden xs:inline sm:inline">Alerts</span>
             </TabsTrigger>
-            <TabsTrigger value="announcements" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm col-span-3 sm:col-span-1">
+            <TabsTrigger value="announcements" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Megaphone className="h-4 w-4" />
-              <span>Announce</span>
+              <span className="hidden xs:inline sm:inline">Announce</span>
             </TabsTrigger>
           </TabsList>
 
@@ -304,6 +338,94 @@ export default function AdminSettings() {
                     })}
                     placeholder="We are currently performing maintenance..."
                   />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="branding">
+            <Card>
+              <CardHeader>
+                <CardTitle>Branding Settings</CardTitle>
+                <CardDescription>Customize the app name and logo</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="app-name">App Name</Label>
+                  <Input
+                    id="app-name"
+                    value={settings.branding.app_name}
+                    onChange={(e) => setSettings({ 
+                      ...settings, 
+                      branding: { ...settings.branding, app_name: e.target.value } 
+                    })}
+                    placeholder="LifeOS"
+                  />
+                  <p className="text-sm text-muted-foreground">Displayed in navigation and emails</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="logo-url">Logo URL</Label>
+                  <Input
+                    id="logo-url"
+                    value={settings.branding.logo_url}
+                    onChange={(e) => setSettings({ 
+                      ...settings, 
+                      branding: { ...settings.branding, logo_url: e.target.value } 
+                    })}
+                    placeholder="https://example.com/logo.png"
+                  />
+                  <p className="text-sm text-muted-foreground">Leave empty for default icon</p>
+                </div>
+                {settings.branding.logo_url && (
+                  <div className="border border-border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-2">Preview:</p>
+                    <img 
+                      src={settings.branding.logo_url} 
+                      alt="Logo preview" 
+                      className="h-12 w-auto object-contain"
+                      onError={(e) => e.currentTarget.style.display = 'none'}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="support">
+            <Card>
+              <CardHeader>
+                <CardTitle>Support Widget</CardTitle>
+                <CardDescription>Configure Tawk.to live chat widget</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="support-enabled">Enable Support Widget</Label>
+                    <p className="text-sm text-muted-foreground">Show live chat widget to users</p>
+                  </div>
+                  <Switch
+                    id="support-enabled"
+                    checked={settings.support_widget.enabled}
+                    onCheckedChange={(checked) => setSettings({ 
+                      ...settings, 
+                      support_widget: { ...settings.support_widget, enabled: checked } 
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tawkto-property">Tawk.to Property ID</Label>
+                  <Input
+                    id="tawkto-property"
+                    value={settings.support_widget.propertyId}
+                    onChange={(e) => setSettings({ 
+                      ...settings, 
+                      support_widget: { ...settings.support_widget, propertyId: e.target.value } 
+                    })}
+                    placeholder="e.g., 1234567890abcdef/1a2b3c4d"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Find this in Tawk.to Dashboard → Administration → Chat Widget → Direct Chat Link
+                  </p>
                 </div>
               </CardContent>
             </Card>

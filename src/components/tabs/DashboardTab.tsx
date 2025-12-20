@@ -1,7 +1,8 @@
-import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Timer, Wand2, PenTool, X, Cpu, RefreshCw } from 'lucide-react';
+import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Wand2, PenTool, Cpu, RefreshCw } from 'lucide-react';
 import { DAYS } from '@/lib/constants';
 import { Tasks, Task } from '@/lib/types';
-import { formatCurrency, formatTimer } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
+import { FocusTimer } from '@/components/FocusTimer';
 
 interface DashboardTabProps {
   tasks: Tasks;
@@ -11,10 +12,6 @@ interface DashboardTabProps {
   balance: number;
   currency: string;
   dailyBriefing: string;
-  pomodoroActive: boolean;
-  pomodoroTime: number;
-  setPomodoroActive: (active: boolean) => void;
-  setPomodoroTime: (time: number) => void;
   sortingDay: string | null;
   breakingDownTask: string | number | null;
   onSmartSort: (day: string) => void;
@@ -33,10 +30,6 @@ export function DashboardTab({
   balance,
   currency,
   dailyBriefing,
-  pomodoroActive,
-  pomodoroTime,
-  setPomodoroActive,
-  setPomodoroTime,
   sortingDay,
   breakingDownTask,
   onSmartSort,
@@ -46,6 +39,10 @@ export function DashboardTab({
   onDailyBriefing,
   onOpenModal,
 }: DashboardTabProps) {
+  // Get today's tasks for FocusTimer
+  const todayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+  const todayTasks = (tasks[todayName] || []).filter(t => !t.done);
+
   const toggleTaskDone = (day: string, taskId: string | number) => {
     setTasks(prev => ({
       ...prev,
@@ -58,12 +55,6 @@ export function DashboardTab({
       ...prev,
       [day]: prev[day]?.filter(t => String(t.id) !== String(taskId)) || []
     }));
-  };
-
-  const startPomodoro = (taskText: string) => {
-    setPomodoroActive(true);
-    setPomodoroTime(25 * 60);
-    alert(`Focus Mode Started: 25 mins on "${taskText}"`);
   };
 
   return (
@@ -130,7 +121,6 @@ export function DashboardTab({
                   onEdit={() => onOpenModal('editTask', { day, taskId: task.id }, task.text)}
                   onBreakdown={() => onBreakdownTask(day, task.id, task.text)}
                   onSmartDraft={() => onSmartDraft(task.text)}
-                  onStartPomodoro={() => startPomodoro(task.text)}
                 />
               ))}
             </div>
@@ -160,20 +150,13 @@ export function DashboardTab({
           </div>
         </div>
 
-        {/* Life Audit & Pomodoro */}
-        <div className="flex flex-col justify-end">
-          {pomodoroActive && (
-            <div className="bg-warning/10 text-warning p-4 rounded-xl mb-4 flex items-center justify-between border border-warning/20 animate-in">
-              <div className="flex items-center gap-3">
-                <Timer className="animate-pulse" />
-                <span className="font-bold text-xl font-mono">{formatTimer(pomodoroTime)}</span>
-              </div>
-              <button onClick={() => setPomodoroActive(false)} className="p-2 hover:bg-warning/20 rounded-full">
-                <X size={16} />
-              </button>
-            </div>
-          )}
+        {/* Focus Timer */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-1">
+          <FocusTimer todayTasks={todayTasks} />
+        </div>
 
+        {/* Life Audit */}
+        <div className="flex flex-col justify-end">
           <button 
             onClick={onLifeAudit} 
             className="w-full bg-primary/10 text-primary rounded-xl p-4 hover:bg-primary/20 transition-colors flex items-center justify-center gap-2 text-sm font-bold border border-primary/20 shadow-soft"
@@ -195,10 +178,9 @@ interface TaskItemProps {
   onEdit: () => void;
   onBreakdown: () => void;
   onSmartDraft: () => void;
-  onStartPomodoro: () => void;
 }
 
-function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onBreakdown, onSmartDraft, onStartPomodoro }: TaskItemProps) {
+function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onBreakdown, onSmartDraft }: TaskItemProps) {
   const taskText = task.text || '';
   const isSubtask = taskText.startsWith('↳');
   const showDraftButton = ['email', 'message', 'write', 'contact'].some(keyword => 
@@ -235,9 +217,6 @@ function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onB
             </button>
           </>
         )}
-        <button onClick={onStartPomodoro} className="text-warning hover:text-warning/80 mr-1 p-1" title="Start Focus Timer">
-          <Timer size={12} />
-        </button>
         <button onClick={onEdit} className="text-muted-foreground hover:text-primary mr-1 p-1">
           <Edit2 size={12} />
         </button>
