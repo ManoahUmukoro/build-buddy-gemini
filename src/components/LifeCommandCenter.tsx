@@ -364,35 +364,50 @@ export default function LifeCommandCenter() {
           return;
         }
         
-        if (data?.items && data.items.length > 0) {
-          // Use the first item or total for the transaction
-          const mainItem = data.items[0];
-          const amount = data.total || mainItem.amount;
-          const description = data.vendor || mainItem.description || 'Scanned Receipt';
-          const category = mainItem.category || 'Other';
-          
-          setNewTransaction(prev => ({
-            ...prev,
-            amount: String(Math.round(amount)),
-            description,
+        // Auto-persist the transaction immediately
+        const amount = data?.total || data?.items?.[0]?.amount || 0;
+        const description = data?.vendor || data?.items?.[0]?.description || 'Scanned Receipt';
+        const category = data?.items?.[0]?.category || 'Other';
+        const date = data?.date || new Date().toISOString().split('T')[0];
+        
+        if (amount > 0) {
+          // Create transaction immediately (auto-persist)
+          const newTxn = {
+            id: Date.now(),
+            type: 'expense' as const,
+            amount: Math.round(amount),
+            description: description + (data?.items?.length > 1 ? ` (+${data.items.length - 1} items)` : ''),
             category,
-            type: 'expense',
-            date: data.date || new Date().toISOString().split('T')[0]
-          }));
+            date,
+          };
           
-          toast.success(`Receipt scanned! Found ${data.items.length} item(s) totaling ${currency}${amount}`);
-        } else if (data?.total) {
-          setNewTransaction(prev => ({
-            ...prev,
-            amount: String(Math.round(data.total)),
-            description: data.vendor || 'Scanned Receipt',
-            type: 'expense',
-            date: data.date || new Date().toISOString().split('T')[0]
-          }));
-          toast.success('Receipt scanned successfully!');
+          // Add to transactions state (this will persist to DB via useSupabaseData)
+          await setTransactions(prev => [...prev, newTxn]);
+          
+          toast.success(`Receipt saved! ${currency}${Math.round(amount)} expense added to Recent Records`);
         } else {
-          toast.error('Could not read receipt. Please try a clearer image.');
+          // If parsing incomplete, still create a draft transaction
+          const draftTxn = {
+            id: Date.now(),
+            type: 'expense' as const,
+            amount: 0,
+            description: 'Draft: ' + (description || 'Receipt scan - edit to complete'),
+            category: 'Other',
+            date,
+          };
+          
+          await setTransactions(prev => [...prev, draftTxn]);
+          toast.info('Receipt saved as draft. Please edit the amount.');
         }
+        
+        // Reset the form
+        setNewTransaction({
+          type: 'income',
+          amount: '',
+          category: categories[0] || 'Food',
+          description: '',
+          date: new Date().toISOString().split('T')[0]
+        });
         
         setIsScanningReceipt(false);
       };

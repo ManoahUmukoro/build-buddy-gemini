@@ -143,6 +143,44 @@ export type Database = {
         }
         Relationships: []
       }
+      focus_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          duration_minutes: number
+          id: string
+          task_id: string | null
+          task_label: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes: number
+          id?: string
+          task_id?: string | null
+          task_label?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          task_id?: string | null
+          task_label?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "focus_sessions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_completions: {
         Row: {
           completed: boolean
@@ -317,6 +355,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string
           id: string
@@ -324,6 +363,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name: string
           id?: string
@@ -331,6 +371,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string
           id?: string
@@ -339,6 +380,47 @@ export type Database = {
         }
         Relationships: []
       }
+      savings_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          date: string
+          id: string
+          note: string | null
+          savings_goal_id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          date: string
+          id?: string
+          note?: string | null
+          savings_goal_id: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string | null
+          savings_goal_id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_entries_savings_goal_id_fkey"
+            columns: ["savings_goal_id"]
+            isOneToOne: false
+            referencedRelation: "savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       savings_goals: {
         Row: {
           created_at: string
@@ -346,6 +428,7 @@ export type Database = {
           id: string
           name: string
           target: number
+          target_date: string | null
           updated_at: string
           user_id: string
         }
@@ -355,6 +438,7 @@ export type Database = {
           id?: string
           name: string
           target?: number
+          target_date?: string | null
           updated_at?: string
           user_id: string
         }
@@ -364,6 +448,7 @@ export type Database = {
           id?: string
           name?: string
           target?: number
+          target_date?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -542,6 +627,9 @@ export type Database = {
           created_at: string
           gemini_api_key: string | null
           id: string
+          notifications: Json | null
+          preferences: Json | null
+          privacy: Json | null
           updated_at: string
           user_id: string
         }
@@ -549,6 +637,9 @@ export type Database = {
           created_at?: string
           gemini_api_key?: string | null
           id?: string
+          notifications?: Json | null
+          preferences?: Json | null
+          privacy?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -556,6 +647,9 @@ export type Database = {
           created_at?: string
           gemini_api_key?: string | null
           id?: string
+          notifications?: Json | null
+          preferences?: Json | null
+          privacy?: Json | null
           updated_at?: string
           user_id?: string
         }

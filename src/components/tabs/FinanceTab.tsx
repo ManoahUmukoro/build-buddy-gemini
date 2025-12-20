@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { 
   TrendingUp, DollarSign, Wallet, Plus, Edit2, Trash2, X, 
-  Sparkles, Loader2, MessageCircle, RefreshCw, Wand2, CreditCard, PiggyBank, Receipt
+  Sparkles, Loader2, MessageCircle, RefreshCw, Wand2, CreditCard, PiggyBank, Receipt,
+  ArrowUpCircle, ArrowDownCircle, History, CalendarDays
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction, Subscription, Budget, ChatMessage, SavingsGoal } from '@/lib/types';
@@ -9,7 +10,11 @@ import { formatCurrency } from '@/lib/formatters';
 import { CHART_COLORS } from '@/lib/constants';
 import { Modal } from '@/components/Modal';
 import { ChatInterface } from '@/components/ChatInterface';
+import { useSavingsEntries, SavingsEntry } from '@/hooks/useSavingsEntries';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface FinanceTabProps {
   transactions: Transaction[];
@@ -611,7 +616,6 @@ export function FinanceTab({
                       </div>
                     </div>
                     
-                    {/* Separate columns for Target and Current Balance */}
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="bg-card p-3 rounded-lg border border-border">
                         <p className="text-xs text-muted-foreground mb-1">Target Amount</p>
