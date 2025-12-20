@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.weekly-checkin]
 verify_jwt = false
+
+[functions.admin-get-users]
+verify_jwt = true

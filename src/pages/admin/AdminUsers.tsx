@@ -35,12 +35,14 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MoreHorizontal, Search, UserPlus, Shield, Ban, RefreshCw, Plus, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Search, UserPlus, Shield, Ban, RefreshCw, Loader2, Mail } from 'lucide-react';
 
 interface UserData {
   id: string;
   email: string;
+  email_confirmed: boolean;
   created_at: string;
+  last_sign_in: string | null;
   display_name: string | null;
   plan: string;
   status: string;
@@ -51,6 +53,9 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [assignRoleDialogOpen, setAssignRoleDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user'>('user');
 
   useEffect(() => {
     fetchUsers();
@@ -60,42 +65,22 @@ export default function AdminUsers() {
     try {
       setLoading(true);
       
-      // Fetch profiles with plans and roles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, created_at');
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error('No session');
+      }
 
-      if (profilesError) throw profilesError;
+      const { data, error } = await supabase.functions.invoke('admin-get-users', {
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
 
-      const { data: plans, error: plansError } = await supabase
-        .from('user_plans')
-        .select('user_id, plan, status');
+      if (error) throw error;
 
-      if (plansError) throw plansError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      // Combine data
-      const usersData: UserData[] = profiles?.map(profile => {
-        const plan = plans?.find(p => p.user_id === profile.user_id);
-        const role = roles?.find(r => r.user_id === profile.user_id);
-        
-        return {
-          id: profile.user_id,
-          email: '', // We don't have direct access to auth.users
-          created_at: profile.created_at,
-          display_name: profile.display_name,
-          plan: plan?.plan || 'free',
-          status: plan?.status || 'active',
-          role: role?.role || null,
-        };
-      }) || [];
-
-      setUsers(usersData);
+      if (data?.users) {
+        setUsers(data.users);
+      }
     } catch (err) {
       console.error('Error fetching users:', err);
       toast.error('Failed to load users');
@@ -112,7 +97,7 @@ export default function AdminUsers() {
 
       if (error) throw error;
       
-      toast.success(`User upgraded to ${plan}`);
+      toast.success(`User plan updated to ${plan}`);
       fetchUsers();
     } catch (err) {
       console.error('Error updating plan:', err);
@@ -133,91 +118,6 @@ export default function AdminUsers() {
     } catch (err) {
       console.error('Error updating status:', err);
       toast.error('Failed to update user status');
-    }
-  }
-
-  async function assignAdminRole(userId: string) {
-    try {
-      const { error } = await supabase
-        .from('user_roles')
-        .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role' });
-
-      if (error) throw error;
-      
-      toast.success('Admin role assigned');
-      fetchUsers();
-    } catch (err) {
-      console.error('Error assigning role:', err);
-      toast.error('Failed to assign admin role');
-    }
-  }
-
-  async function removeAdminRole(userId: string) {
-    try {
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId)
-        .eq('role', 'admin');
-
-      if (error) throw error;
-      
-      toast.success('Admin role removed');
-      fetchUsers();
-    } catch (err) {
-      console.error('Error removing role:', err);
-      toast.error('Failed to remove admin role');
-    }
-  }
-
-  const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserPlan, setNewUserPlan] = useState<'free' | 'pro'>('free');
-  const [addingUser, setAddingUser] = useState(false);
-  const [assignRoleDialogOpen, setAssignRoleDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user'>('user');
-
-  const filteredUsers = users.filter(user =>
-    user.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  async function handleAddUser() {
-    if (!newUserName.trim()) {
-      toast.error('Please enter a display name');
-      return;
-    }
-    
-    setAddingUser(true);
-    try {
-      // Create a temporary user ID (in real app, this would come from auth signup)
-      const tempUserId = crypto.randomUUID();
-      
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({ user_id: tempUserId, display_name: newUserName });
-      
-      if (profileError) throw profileError;
-      
-      // Create user plan
-      const { error: planError } = await supabase
-        .from('user_plans')
-        .insert({ user_id: tempUserId, plan: newUserPlan, status: 'active' });
-      
-      if (planError) throw planError;
-      
-      toast.success('User profile created');
-      setAddUserDialogOpen(false);
-      setNewUserName('');
-      setNewUserPlan('free');
-      fetchUsers();
-    } catch (err) {
-      console.error('Error adding user:', err);
-      toast.error('Failed to add user');
-    } finally {
-      setAddingUser(false);
     }
   }
 
@@ -256,60 +156,26 @@ export default function AdminUsers() {
     }
   }
 
+  const filteredUsers = users.filter(user =>
+    user.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-            <p className="text-muted-foreground">Manage all users and their access</p>
+            <p className="text-muted-foreground">
+              {loading ? 'Loading...' : `${users.length} total users`}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Dialog open={addUserDialogOpen} onOpenChange={setAddUserDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New User</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="userName">Display Name</Label>
-                    <Input
-                      id="userName"
-                      value={newUserName}
-                      onChange={(e) => setNewUserName(e.target.value)}
-                      placeholder="Enter display name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="userPlan">Plan</Label>
-                    <Select value={newUserPlan} onValueChange={(v) => setNewUserPlan(v as 'free' | 'pro')}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="free">Free</SelectItem>
-                        <SelectItem value="pro">Pro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleAddUser} disabled={addingUser} className="w-full">
-                    {addingUser ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
-                    Add User
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Button onClick={fetchUsers} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
+          <Button onClick={fetchUsers} variant="outline" size="sm" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Role Assignment Dialog */}
@@ -345,7 +211,7 @@ export default function AdminUsers() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search users..."
+                  placeholder="Search by name, email, or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -355,9 +221,13 @@ export default function AdminUsers() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading users...</div>
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No users found</div>
+              <div className="text-center py-12 text-muted-foreground">
+                {searchTerm ? 'No users match your search' : 'No users found'}
+              </div>
             ) : (
               <>
                 {/* Desktop Table View */}
@@ -366,6 +236,7 @@ export default function AdminUsers() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
+                        <TableHead>Email</TableHead>
                         <TableHead>Plan</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Role</TableHead>
@@ -379,9 +250,18 @@ export default function AdminUsers() {
                           <TableCell>
                             <div>
                               <div className="font-medium">{user.display_name || 'Unknown'}</div>
-                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                {user.id}
+                              <div className="text-xs text-muted-foreground truncate max-w-[120px]">
+                                {user.id.slice(0, 8)}...
                               </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">{user.email || 'N/A'}</span>
+                              {user.email_confirmed && (
+                                <Badge variant="outline" className="text-xs">Verified</Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -395,13 +275,16 @@ export default function AdminUsers() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {user.role === 'admin' && (
-                              <Badge variant="default" className="bg-purple-500">
-                                Admin
+                            {user.role && (
+                              <Badge 
+                                variant="default" 
+                                className={user.role === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}
+                              >
+                                {user.role}
                               </Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="text-muted-foreground text-sm">
                             {new Date(user.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
@@ -422,7 +305,7 @@ export default function AdminUsers() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
                                   setSelectedUserId(user.id);
-                                  setSelectedRole(user.role as 'admin' | 'moderator' | 'user' || 'user');
+                                  setSelectedRole((user.role as 'admin' | 'moderator') || 'user');
                                   setAssignRoleDialogOpen(true);
                                 }}>
                                   <Shield className="h-4 w-4 mr-2" />
@@ -444,9 +327,7 @@ export default function AdminUsers() {
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="font-medium">{user.display_name || 'Unknown'}</div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                            {user.id.slice(0, 8)}...
-                          </div>
+                          <div className="text-xs text-muted-foreground">{user.email}</div>
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -465,7 +346,7 @@ export default function AdminUsers() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => {
                               setSelectedUserId(user.id);
-                              setSelectedRole(user.role as 'admin' | 'moderator' | 'user' || 'user');
+                              setSelectedRole((user.role as 'admin' | 'moderator') || 'user');
                               setAssignRoleDialogOpen(true);
                             }}>
                               <Shield className="h-4 w-4 mr-2" />
@@ -475,14 +356,19 @@ export default function AdminUsers() {
                         </DropdownMenu>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant={user.plan === 'pro' ? 'default' : 'secondary'} className="text-xs">
+                        <Badge variant={user.plan === 'pro' ? 'default' : 'secondary'}>
                           {user.plan}
                         </Badge>
-                        <Badge variant={user.status === 'active' ? 'outline' : 'destructive'} className="text-xs">
+                        <Badge variant={user.status === 'active' ? 'outline' : 'destructive'}>
                           {user.status}
                         </Badge>
-                        {user.role === 'admin' && (
-                          <Badge variant="default" className="bg-purple-500 text-xs">Admin</Badge>
+                        {user.role && (
+                          <Badge 
+                            variant="default" 
+                            className={user.role === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}
+                          >
+                            {user.role}
+                          </Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">

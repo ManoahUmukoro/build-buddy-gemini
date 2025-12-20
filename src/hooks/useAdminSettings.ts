@@ -6,15 +6,18 @@ interface MaintenanceConfig {
   message: string;
 }
 
+export interface ModulesConfig {
+  dashboard: boolean;
+  systems: boolean;
+  finance: boolean;
+  journal: boolean;
+  help: boolean;
+  savings: boolean;
+}
+
 interface AppSettings {
   maintenance_mode: MaintenanceConfig;
-  modules: {
-    dashboard: boolean;
-    systems: boolean;
-    finance: boolean;
-    journal: boolean;
-    help: boolean;
-  };
+  modules: ModulesConfig;
   notifications: {
     email_enabled: boolean;
     push_enabled: boolean;
@@ -41,6 +44,7 @@ const defaultSettings: AppSettings = {
     finance: true,
     journal: true,
     help: true,
+    savings: true,
   },
   notifications: {
     email_enabled: true,
@@ -81,9 +85,23 @@ export function useAdminSettings() {
           ? { enabled: maintenanceConfig.enabled ?? false, message: maintenanceConfig.message ?? '' }
           : defaultSettings.maintenance_mode;
 
+      // Parse modules config
+      const modulesConfig = settingsMap.modules;
+      const parsedModules: ModulesConfig = 
+        modulesConfig && typeof modulesConfig === 'object'
+          ? { 
+              dashboard: modulesConfig.dashboard ?? true,
+              systems: modulesConfig.systems ?? true,
+              finance: modulesConfig.finance ?? true,
+              journal: modulesConfig.journal ?? true,
+              help: modulesConfig.help ?? true,
+              savings: modulesConfig.savings ?? true,
+            }
+          : defaultSettings.modules;
+
       setSettings({
         maintenance_mode: parsedMaintenance,
-        modules: settingsMap.modules ?? defaultSettings.modules,
+        modules: parsedModules,
         notifications: settingsMap.notifications ?? defaultSettings.notifications,
         features: settingsMap.features ?? defaultSettings.features,
       });
@@ -121,10 +139,11 @@ export function useAdminSettings() {
   return {
     settings,
     loading,
-    isModuleEnabled: (module: keyof AppSettings['modules']) => settings.modules[module],
+    isModuleEnabled: (module: keyof ModulesConfig) => settings.modules[module],
     isFeatureEnabled: (feature: keyof AppSettings['features']) => settings.features[feature],
     isMaintenanceMode: settings.maintenance_mode.enabled,
     maintenanceMessage: settings.maintenance_mode.message,
+    modules: settings.modules,
     refetch: fetchSettings,
   };
 }

@@ -14,10 +14,12 @@ import { HelpTab } from '@/components/tabs/HelpTab';
 import { ProfileTab } from '@/components/tabs/ProfileTab';
 import { SaveIndicator } from '@/components/SaveIndicator';
 import { AICommandButton } from '@/components/AICommandButton';
+import { ModuleDisabled } from '@/components/ModuleDisabled';
 import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
 import { useProfile } from '@/hooks/useProfile';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -52,6 +54,9 @@ export default function LifeCommandCenter() {
   
   // Profile Hook
   const { profile } = useProfile();
+  
+  // Admin Settings Hook for module gating
+  const { isModuleEnabled } = useAdminSettings();
   
   // Local UI State
   const [sortingDay, setSortingDay] = useState<string | null>(null);
@@ -677,68 +682,74 @@ export default function LifeCommandCenter() {
             )}
             
             {activeTab === 'systems' && (
-              <SystemsTab
-                systems={systems}
-                setSystems={setSystems}
-                onOpenModal={openModal}
-              />
+              isModuleEnabled('systems') ? (
+                <SystemsTab
+                  systems={systems}
+                  setSystems={setSystems}
+                  onOpenModal={openModal}
+                />
+              ) : <ModuleDisabled moduleName="Systems & Goals" />
             )}
             
             {activeTab === 'finance' && (
-              <FinanceTab
-                transactions={transactions}
-                setTransactions={setTransactions}
-                subscriptions={subscriptions}
-                setSubscriptions={setSubscriptions}
-                savingsGoals={savingsGoals}
-                setSavingsGoals={setSavingsGoals}
-                budgets={budgets}
-                setBudgets={setBudgets}
-                categories={categories}
-                currency={currency}
-                setCurrency={setCurrency}
-                totalIncome={totalIncome}
-                totalExpense={totalExpense}
-                balance={balance}
-                safeDailySpend={safeDailySpend}
-                totalFixedCosts={totalFixedCosts}
-                expenseData={expenseData}
-                financeAnalysis={financeAnalysis}
-                isAnalyzingFinance={isAnalyzingFinance}
-                financeChatHistory={financeChatHistory}
-                onAnalyzeFinances={handleAnalyzeFinances}
-                onFinanceChat={handleFinanceChat}
-                onAutoCategorize={handleAutoCategorize}
-                onReceiptScan={handleReceiptScan}
-                isCategorizing={isCategorizing}
-                isScanningReceipt={isScanningReceipt}
-                onOpenModal={openModal}
-                newTransaction={newTransaction}
-                setNewTransaction={setNewTransaction}
-                editingTransactionId={editingTransactionId}
-                setEditingTransactionId={setEditingTransactionId}
-                currentMonthIncome={currentMonthIncome}
-              />
+              isModuleEnabled('finance') ? (
+                <FinanceTab
+                  transactions={transactions}
+                  setTransactions={setTransactions}
+                  subscriptions={subscriptions}
+                  setSubscriptions={setSubscriptions}
+                  savingsGoals={savingsGoals}
+                  setSavingsGoals={setSavingsGoals}
+                  budgets={budgets}
+                  setBudgets={setBudgets}
+                  categories={categories}
+                  currency={currency}
+                  setCurrency={setCurrency}
+                  totalIncome={totalIncome}
+                  totalExpense={totalExpense}
+                  balance={balance}
+                  safeDailySpend={safeDailySpend}
+                  totalFixedCosts={totalFixedCosts}
+                  expenseData={expenseData}
+                  financeAnalysis={financeAnalysis}
+                  isAnalyzingFinance={isAnalyzingFinance}
+                  financeChatHistory={financeChatHistory}
+                  onAnalyzeFinances={handleAnalyzeFinances}
+                  onFinanceChat={handleFinanceChat}
+                  onAutoCategorize={handleAutoCategorize}
+                  onReceiptScan={handleReceiptScan}
+                  isCategorizing={isCategorizing}
+                  isScanningReceipt={isScanningReceipt}
+                  onOpenModal={openModal}
+                  newTransaction={newTransaction}
+                  setNewTransaction={setNewTransaction}
+                  editingTransactionId={editingTransactionId}
+                  setEditingTransactionId={setEditingTransactionId}
+                  currentMonthIncome={currentMonthIncome}
+                />
+              ) : <ModuleDisabled moduleName="Finances" />
             )}
             
             {activeTab === 'journal' && (
-              <JournalTab
-                journalEntries={journalEntries}
-                setJournalEntries={setJournalEntries}
-                todayEntry={todayEntry}
-                setTodayEntry={setTodayEntry}
-                editingEntryId={editingEntryId}
-                setEditingEntryId={setEditingEntryId}
-                isSavingJournal={isSavingJournal}
-                journalChatHistory={journalChatHistory}
-                onSaveJournal={handleSaveJournal}
-                onJournalChat={handleJournalChat}
-                onWeeklyReport={handleWeeklyReport}
-              />
+              isModuleEnabled('journal') ? (
+                <JournalTab
+                  journalEntries={journalEntries}
+                  setJournalEntries={setJournalEntries}
+                  todayEntry={todayEntry}
+                  setTodayEntry={setTodayEntry}
+                  editingEntryId={editingEntryId}
+                  setEditingEntryId={setEditingEntryId}
+                  isSavingJournal={isSavingJournal}
+                  journalChatHistory={journalChatHistory}
+                  onSaveJournal={handleSaveJournal}
+                  onJournalChat={handleJournalChat}
+                  onWeeklyReport={handleWeeklyReport}
+                />
+              ) : <ModuleDisabled moduleName="Journal" />
             )}
             
             {activeTab === 'help' && (
-              <HelpTab />
+              isModuleEnabled('help') ? <HelpTab /> : <ModuleDisabled moduleName="Help Center" />
             )}
             
             {activeTab === 'profile' && (
