@@ -31,7 +31,6 @@ interface FinanceTabProps {
   setBudgets: React.Dispatch<React.SetStateAction<Budget>>;
   categories: string[];
   currency: string;
-  setCurrency: (c: string) => void;
   totalIncome: number;
   totalExpense: number;
   balance: number;
@@ -79,7 +78,6 @@ export function FinanceTab({
   setBudgets,
   categories,
   currency,
-  setCurrency,
   totalIncome,
   balance,
   safeDailySpend,
@@ -237,12 +235,6 @@ export function FinanceTab({
             </div>
             
             <div className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-soft relative">
-              <button 
-                onClick={() => setCurrency(currency === '₦' ? '$' : '₦')} 
-                className="absolute top-2 right-2 bg-muted p-1 rounded text-xs font-bold text-primary"
-              >
-                <RefreshCw size={12} />
-              </button>
               <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
                 <DollarSign size={18} className="shrink-0" /> Balance
               </div>

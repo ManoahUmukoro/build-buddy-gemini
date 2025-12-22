@@ -2,7 +2,7 @@ import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Wand2, PenTool, Cp
 import { DAYS } from '@/lib/constants';
 import { Tasks, Task } from '@/lib/types';
 import { formatCurrency } from '@/lib/formatters';
-import { FocusTimer } from '@/components/FocusTimer';
+
 
 interface DashboardTabProps {
   tasks: Tasks;
@@ -39,9 +39,6 @@ export function DashboardTab({
   onDailyBriefing,
   onOpenModal,
 }: DashboardTabProps) {
-  // Get today's tasks for FocusTimer
-  const todayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
-  const todayTasks = (tasks[todayName] || []).filter(t => !t.done);
 
   const toggleTaskDone = (day: string, taskId: string | number) => {
     setTasks(prev => ({
@@ -150,10 +147,6 @@ export function DashboardTab({
           </div>
         </div>
 
-        {/* Focus Timer */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-1">
-          <FocusTimer todayTasks={todayTasks} />
-        </div>
 
         {/* Life Audit */}
         <div className="flex flex-col justify-end">

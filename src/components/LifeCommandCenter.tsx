@@ -22,6 +22,7 @@ import { useAI } from '@/hooks/useAI';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -59,10 +60,13 @@ export default function LifeCommandCenter() {
   // Admin Settings Hook for module gating
   const { isModuleEnabled } = useAdminSettings();
   
+  // User Settings for currency
+  const { preferences } = useUserSettings();
+  const currency = preferences.currency;
+  
   // Local UI State
   const [sortingDay, setSortingDay] = useState<string | null>(null);
   const [breakingDownTask, setBreakingDownTask] = useState<string | number | null>(null);
-  const [currency, setCurrency] = useState('₦');
   const [newTransaction, setNewTransaction] = useState({
     type: 'income' as 'income' | 'expense',
     amount: '',
@@ -734,7 +738,6 @@ export default function LifeCommandCenter() {
                   setBudgets={setBudgets}
                   categories={categories}
                   currency={currency}
-                  setCurrency={setCurrency}
                   totalIncome={totalIncome}
                   totalExpense={totalExpense}
                   balance={balance}

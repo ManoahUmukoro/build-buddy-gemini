@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SettingsTabProps {
@@ -33,35 +34,16 @@ interface SettingsTabProps {
   onSaveApiKey: (key: string) => void;
 }
 
-interface UserPreferences {
-  theme: 'light' | 'dark' | 'system';
-  currency: string;
-  week_start: 'sunday' | 'monday';
-}
-
-interface UserNotifications {
-  email_enabled: boolean;
-  push_enabled: boolean;
-  daily_digest: boolean;
-  weekly_digest: boolean;
-}
-
-const defaultPreferences: UserPreferences = {
-  theme: 'system',
-  currency: '₦',
-  week_start: 'monday',
-};
-
-const defaultNotifications: UserNotifications = {
-  email_enabled: true,
-  push_enabled: false,
-  daily_digest: true,
-  weekly_digest: true,
-};
-
 export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }: SettingsTabProps) {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
+  const { 
+    preferences, 
+    notifications, 
+    loading: settingsLoading, 
+    updatePreferences, 
+    updateNotifications 
+  } = useUserSettings();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -74,10 +56,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
   const [showApiKey, setShowApiKey] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
   
-  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
-  const [notifications, setNotifications] = useState<UserNotifications>(defaultNotifications);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [loadingSettings, setLoadingSettings] = useState(true);
   
   const [userPlan, setUserPlan] = useState<string>('free');
 
@@ -89,39 +68,27 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
     }
   }, [profile]);
 
-  // Load user settings
+  // Load user plan
   useEffect(() => {
-    async function loadSettings() {
+    async function loadPlan() {
       if (!user) return;
       
       try {
-        const [settingsRes, planRes] = await Promise.all([
-          supabase.from('user_settings').select('preferences, notifications').eq('user_id', user.id).maybeSingle(),
-          supabase.from('user_plans').select('plan').eq('user_id', user.id).maybeSingle()
-        ]);
+        const { data: planRes } = await supabase
+          .from('user_plans')
+          .select('plan')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (settingsRes.data) {
-          const prefs = settingsRes.data.preferences;
-          const notifs = settingsRes.data.notifications;
-          if (prefs && typeof prefs === 'object') {
-            setPreferences({ ...defaultPreferences, ...(prefs as any) });
-          }
-          if (notifs && typeof notifs === 'object') {
-            setNotifications({ ...defaultNotifications, ...(notifs as any) });
-          }
-        }
-        
-        if (planRes.data) {
-          setUserPlan(planRes.data.plan);
+        if (planRes) {
+          setUserPlan(planRes.plan);
         }
       } catch (err) {
-        console.error('Error loading settings:', err);
-      } finally {
-        setLoadingSettings(false);
+        console.error('Error loading plan:', err);
       }
     }
 
-    loadSettings();
+    loadPlan();
   }, [user]);
 
   // Save API key
@@ -211,48 +178,6 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
     }
   };
 
-  // Save preferences and notifications
-  const handleSaveSettings = async () => {
-    if (!user) return;
-    setSavingSettings(true);
-    
-    try {
-      // Check if user_settings exists
-      const { data: existing } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existing) {
-        const { error } = await supabase
-          .from('user_settings')
-          .update({
-            preferences: preferences as any,
-            notifications: notifications as any,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('user_settings')
-          .insert({
-            user_id: user.id,
-            preferences: preferences as any,
-            notifications: notifications as any,
-          });
-        if (error) throw error;
-      }
-      toast.success('Settings saved');
-    } catch (err) {
-      console.error('Error saving settings:', err);
-      toast.error('Failed to save settings');
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
   // Request browser notifications
   const handleRequestPush = async () => {
     if (!('Notification' in window)) {
@@ -262,7 +187,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
 
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      setNotifications(prev => ({ ...prev, push_enabled: true }));
+      await updateNotifications({ push_enabled: true });
       toast.success('Push notifications enabled!');
       new Notification('LifeOS', { body: 'Notifications are now enabled!', icon: '/favicon.ico' });
     } else {
@@ -294,7 +219,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
 
   const isApiKeyConnected = !!geminiApiKey;
 
-  if (loadingSettings || profileLoading) {
+  if (settingsLoading || profileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -480,7 +405,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 <Label>Theme</Label>
                 <Select 
                   value={preferences.theme} 
-                  onValueChange={(v) => setPreferences(prev => ({ ...prev, theme: v as any }))}
+                  onValueChange={(v) => updatePreferences({ theme: v as 'light' | 'dark' | 'system' })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -491,6 +416,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                     <SelectItem value="system">System</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Theme changes apply immediately</p>
               </div>
             </CardContent>
           </Card>
@@ -507,7 +433,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 <Label>Currency</Label>
                 <Select 
                   value={preferences.currency} 
-                  onValueChange={(v) => setPreferences(prev => ({ ...prev, currency: v }))}
+                  onValueChange={(v) => updatePreferences({ currency: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -520,13 +446,14 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                     <SelectItem value="₹">₹ Rupee (INR)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Currency updates throughout Finance</p>
               </div>
 
               <div className="space-y-2">
                 <Label>Week Starts On</Label>
                 <Select 
                   value={preferences.week_start} 
-                  onValueChange={(v) => setPreferences(prev => ({ ...prev, week_start: v as any }))}
+                  onValueChange={(v) => updatePreferences({ week_start: v as 'sunday' | 'monday' })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -537,11 +464,6 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                   </SelectContent>
                 </Select>
               </div>
-
-              <Button onClick={handleSaveSettings} disabled={savingSettings}>
-                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
-                Save Preferences
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -563,7 +485,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 </div>
                 <Switch
                   checked={notifications.email_enabled}
-                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, email_enabled: v }))}
+                  onCheckedChange={(v) => updateNotifications({ email_enabled: v })}
                 />
               </div>
 
@@ -580,7 +502,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                   )}
                   <Switch
                     checked={notifications.push_enabled}
-                    onCheckedChange={(v) => setNotifications(prev => ({ ...prev, push_enabled: v }))}
+                    onCheckedChange={(v) => updateNotifications({ push_enabled: v })}
                     disabled={!('Notification' in window) || Notification.permission !== 'granted'}
                   />
                 </div>
@@ -593,7 +515,7 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 </div>
                 <Switch
                   checked={notifications.daily_digest}
-                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, daily_digest: v }))}
+                  onCheckedChange={(v) => updateNotifications({ daily_digest: v })}
                 />
               </div>
 
@@ -604,14 +526,9 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 </div>
                 <Switch
                   checked={notifications.weekly_digest}
-                  onCheckedChange={(v) => setNotifications(prev => ({ ...prev, weekly_digest: v }))}
+                  onCheckedChange={(v) => updateNotifications({ weekly_digest: v })}
                 />
               </div>
-
-              <Button onClick={handleSaveSettings} disabled={savingSettings}>
-                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
-                Save Notifications
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>

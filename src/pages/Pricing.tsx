@@ -226,9 +226,12 @@ export default function Pricing() {
                           if (error) throw error;
                           
                           if (data?.paymentUrl) {
-                            // Store reference for callback
-                            localStorage.setItem('payment_reference', data.reference);
-                            localStorage.setItem('payment_provider', enabledProvider);
+                            // Store pending payment for callback verification
+                            localStorage.setItem('pending_payment', JSON.stringify({
+                              reference: data.reference,
+                              provider: enabledProvider,
+                              planId: plan.id,
+                            }));
                             window.location.href = data.paymentUrl;
                           } else {
                             throw new Error('No payment URL received');
