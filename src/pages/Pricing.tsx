@@ -26,54 +26,66 @@ export default function Pricing() {
   const [plans, setPlans] = useState<PlanConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
+  const [enabledProvider, setEnabledProvider] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchPlans() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'subscription_plans')
-          .single();
-
-        if (error) throw error;
-
-        const plansData = typeof data?.value === 'string' 
-          ? JSON.parse(data.value) 
-          : data?.value || [];
-
-        // Filter active plans
-        const activePlans = plansData.filter((p: PlanConfig) => p.is_active);
-        setPlans(activePlans);
-      } catch (err) {
-        console.error('Error fetching plans:', err);
-        // Default plans if none configured
-        setPlans([
-          {
-            id: 'free',
-            name: 'Free',
-            price: 0,
-            currency: 'NGN',
-            interval: 'month',
-            features: ['Basic task management', '3 systems/goals', 'Journal entries', 'Basic finance tracking'],
-            is_active: true,
-          },
-          {
-            id: 'pro',
-            name: 'Pro',
-            price: 2999,
-            currency: 'NGN',
-            interval: 'month',
-            features: ['Unlimited systems/goals', 'AI-powered insights', 'Receipt scanning', 'Priority support', 'Export data', 'Advanced analytics'],
-            is_active: true,
-          },
+        // Fetch plans and payment providers in parallel
+        const [plansRes, providersRes] = await Promise.all([
+          supabase.from('admin_settings').select('value').eq('key', 'subscription_plans').single(),
+          supabase.from('admin_settings').select('value').eq('key', 'payment_providers').single(),
         ]);
+
+        // Handle plans
+        if (plansRes.data?.value) {
+          const plansData = typeof plansRes.data.value === 'string' 
+            ? JSON.parse(plansRes.data.value) 
+            : plansRes.data.value || [];
+          const activePlans = plansData.filter((p: PlanConfig) => p.is_active);
+          setPlans(activePlans);
+        } else {
+          // Default plans if none configured
+          setPlans([
+            {
+              id: 'free',
+              name: 'Free',
+              price: 0,
+              currency: 'NGN',
+              interval: 'month',
+              features: ['Basic task management', '3 systems/goals', 'Journal entries', 'Basic finance tracking'],
+              is_active: true,
+            },
+            {
+              id: 'pro',
+              name: 'Pro',
+              price: 2999,
+              currency: 'NGN',
+              interval: 'month',
+              features: ['Unlimited systems/goals', 'AI-powered insights', 'Receipt scanning', 'Priority support', 'Export data', 'Advanced analytics'],
+              is_active: true,
+            },
+          ]);
+        }
+
+        // Handle payment providers - find the first enabled one
+        if (providersRes.data?.value) {
+          const providers = providersRes.data.value as Record<string, { enabled: boolean; secret_key?: string }>;
+          for (const [name, config] of Object.entries(providers)) {
+            if (config.enabled && config.secret_key) {
+              setEnabledProvider(name);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchPlans();
+    fetchData();
   }, []);
 
   const formatPrice = (price: number, currency: string) => {
@@ -192,25 +204,32 @@ export default function Pricing() {
                           return;
                         }
                         // Initiate payment
+                        if (!enabledProvider) {
+                          toast.error('No payment provider configured. Please contact support.');
+                          return;
+                        }
                         setSubscribing(plan.id);
                         try {
+                          const callbackUrl = `${window.location.origin}/payment-callback`;
                           const { data, error } = await supabase.functions.invoke('init-payment', {
                             body: {
                               email: user.email,
+                              userId: user.id,
                               amount: plan.price,
                               currency: plan.currency,
-                              plan: plan.id,
-                              provider: 'paystack', // Default to Paystack
+                              planId: plan.id,
+                              provider: enabledProvider,
+                              callbackUrl,
                             },
                           });
                           
                           if (error) throw error;
                           
-                          if (data?.authorization_url) {
+                          if (data?.paymentUrl) {
                             // Store reference for callback
                             localStorage.setItem('payment_reference', data.reference);
-                            localStorage.setItem('payment_provider', 'paystack');
-                            window.location.href = data.authorization_url;
+                            localStorage.setItem('payment_provider', enabledProvider);
+                            window.location.href = data.paymentUrl;
                           } else {
                             throw new Error('No payment URL received');
                           }
