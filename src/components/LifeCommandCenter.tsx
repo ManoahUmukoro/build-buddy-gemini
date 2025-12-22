@@ -11,11 +11,12 @@ import { FinanceTab } from '@/components/tabs/FinanceTab';
 import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
 import { HelpTab } from '@/components/tabs/HelpTab';
-import { ProfileTab } from '@/components/tabs/ProfileTab';
 import { SaveIndicator } from '@/components/SaveIndicator';
 import { AICommandButton } from '@/components/AICommandButton';
+import { FloatingFocusTimer } from '@/components/FloatingFocusTimer';
 import { ModuleDisabled } from '@/components/ModuleDisabled';
-import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem } from '@/lib/types';
+import { SavingsGoalModal } from '@/components/SavingsGoalModal';
+import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem, SavingsGoal } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
 import { useProfile } from '@/hooks/useProfile';
@@ -564,16 +565,34 @@ export default function LifeCommandCenter() {
         await setSubscriptions(prev => prev.filter(s => String(s.id) !== String(modalConfig.data)));
         break;
       case 'addSavings':
-        const savingsAmount = parseFloat(inputValue.replace(/[^0-9.]/g, ''));
-        if (savingsAmount > 0) {
-          await setSavingsGoals(prev => [...prev, { id: Date.now(), name: inputValue.replace(/\d+/g, '').trim() || 'Savings Goal', target: savingsAmount, current: 0 }]);
-        }
+        // Handled by SavingsGoalModal
+        break;
+      case 'editSavingsDeposit':
+        // Handled by SavingsGoalModal
         break;
       case 'deleteSavings':
         await setSavingsGoals(prev => prev.filter(g => String(g.id) !== String(modalConfig.data)));
         break;
     }
     closeModal();
+  };
+
+  // Handle savings goal from modal
+  const handleSaveSavingsGoal = async (goalData: Partial<SavingsGoal>) => {
+    await setSavingsGoals(prev => [...prev, { 
+      id: Date.now(), 
+      name: goalData.name || 'Savings Goal', 
+      target: goalData.target || 0, 
+      current: goalData.current || 0,
+      targetDate: goalData.targetDate 
+    }]);
+    closeModal();
+  };
+
+  const handleUpdateSavingsBalance = async (goalId: string | number, newBalance: number) => {
+    await setSavingsGoals(prev => prev.map(g => 
+      String(g.id) === String(goalId) ? { ...g, current: newBalance } : g
+    ));
   };
 
   // Backup/Restore
@@ -669,7 +688,7 @@ export default function LifeCommandCenter() {
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} alerts={alerts} onClearAlerts={clearAlerts} />
         
         <main className="flex-1 overflow-y-auto w-full pb-20 md:pb-0 min-h-screen">
-          <MobileHeader alerts={alerts} onClearAlerts={clearAlerts} onProfileClick={() => setActiveTab('profile')} />
+          <MobileHeader alerts={alerts} onClearAlerts={clearAlerts} onProfileClick={() => setActiveTab('settings')} />
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {activeTab === 'dashboard' && (
@@ -763,10 +782,6 @@ export default function LifeCommandCenter() {
               isModuleEnabled('help') ? <HelpTab /> : <ModuleDisabled moduleName="Help Center" />
             )}
             
-            {activeTab === 'profile' && (
-              <ProfileTab />
-            )}
-            
             {activeTab === 'settings' && (
               <SettingsTab
                 onBackup={handleBackup}
@@ -792,6 +807,9 @@ export default function LifeCommandCenter() {
           onAddTransaction={(transaction) => setTransactions(prev => [...prev, transaction])}
           onAddSavingsGoal={(goal) => setSavingsGoals(prev => [...prev, goal])}
         />
+        
+        {/* Floating Focus Timer */}
+        <FloatingFocusTimer todayTasks={tasks[`d${currentDayIndex}`] || []} />
         
         {/* Modals */}
         <Modal isOpen={modalConfig.isOpen} onClose={closeModal} title={getModalTitle()}>
@@ -906,6 +924,24 @@ export default function LifeCommandCenter() {
             )
           )}
         </Modal>
+        
+        {/* Savings Goal Modal */}
+        {(modalConfig.type === 'addSavings' || modalConfig.type === 'editSavingsDeposit') && (
+          <Modal 
+            isOpen={modalConfig.isOpen} 
+            onClose={closeModal} 
+            title={modalConfig.type === 'addSavings' ? 'New Savings Goal' : 'Update Savings'}
+          >
+            <SavingsGoalModal
+              mode={modalConfig.type === 'addSavings' ? 'add' : 'deposit'}
+              goal={modalConfig.type === 'editSavingsDeposit' ? savingsGoals.find(g => String(g.id) === String(modalConfig.data?.id)) : undefined}
+              currency={currency}
+              onSave={handleSaveSavingsGoal}
+              onUpdateBalance={handleUpdateSavingsBalance}
+              onClose={closeModal}
+            />
+          </Modal>
+        )}
         
         <SaveIndicator status={saveStatus} />
       </div>
