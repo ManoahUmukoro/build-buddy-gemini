@@ -23,7 +23,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { getCurrentDayIndex } from '@/lib/formatters';
+import { formatCurrency, getCurrentDayIndex } from '@/lib/formatters';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -349,71 +349,67 @@ export default function LifeCommandCenter() {
   const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setIsScanningReceipt(true);
-    
+
+    const normalizeDate = (maybeDate: unknown) => {
+      const d = typeof maybeDate === 'string' ? maybeDate.trim() : '';
+      return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().split('T')[0];
+    };
+
     try {
       // Convert file to base64
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result as string;
-        
+
         const { data, error } = await supabase.functions.invoke('scan-receipt', {
-          body: { imageBase64: base64 }
+          body: { imageBase64: base64 },
         });
-        
+
         if (error) {
           console.error('Receipt scan error:', error);
-          toast.error('Failed to scan receipt. Please try again.');
+          toast.error(error.message || 'Failed to scan receipt. Please try again.');
           setIsScanningReceipt(false);
           return;
         }
-        
-        // Auto-persist the transaction immediately
-        const amount = data?.total || data?.items?.[0]?.amount || 0;
-        const description = data?.vendor || data?.items?.[0]?.description || 'Scanned Receipt';
-        const category = data?.items?.[0]?.category || 'Other';
-        const date = data?.date || new Date().toISOString().split('T')[0];
-        
-        if (amount > 0) {
-          // Create transaction immediately (auto-persist)
-          const newTxn = {
-            id: Date.now(),
-            type: 'expense' as const,
-            amount: Math.round(amount),
-            description: description + (data?.items?.length > 1 ? ` (+${data.items.length - 1} items)` : ''),
-            category,
-            date,
-          };
-          
-          // Add to transactions state (this will persist to DB via useSupabaseData)
-          await setTransactions(prev => [...prev, newTxn]);
-          
-          toast.success(`Receipt saved! ${currency}${Math.round(amount)} expense added to Recent Records`);
+
+        const amount = Number(data?.total || data?.items?.[0]?.amount || 0);
+        const description = String(data?.vendor || data?.items?.[0]?.description || 'Scanned Receipt');
+        const category = String(data?.items?.[0]?.category || 'Other');
+        const date = normalizeDate(data?.date);
+
+        // Always persist a record (draft if amount is 0)
+        const newTxn = {
+          id: Date.now(),
+          type: 'expense' as const,
+          amount: Number.isFinite(amount) ? Math.round(amount) : 0,
+          description: description + (Array.isArray(data?.items) && data.items.length > 1 ? ` (+${data.items.length - 1} items)` : ''),
+          category,
+          date,
+        };
+
+        await setTransactions(prev => {
+          const next = [newTxn, ...prev];
+          next.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return next;
+        });
+
+        if (newTxn.amount > 0) {
+          toast.success(`Receipt saved! ${formatCurrency(newTxn.amount, currency)} added to Recent Records`);
         } else {
-          // If parsing incomplete, still create a draft transaction
-          const draftTxn = {
-            id: Date.now(),
-            type: 'expense' as const,
-            amount: 0,
-            description: 'Draft: ' + (description || 'Receipt scan - edit to complete'),
-            category: 'Other',
-            date,
-          };
-          
-          await setTransactions(prev => [...prev, draftTxn]);
           toast.info('Receipt saved as draft. Please edit the amount.');
         }
-        
+
         // Reset the form
         setNewTransaction({
           type: 'income',
           amount: '',
           category: categories[0] || 'Food',
           description: '',
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
         });
-        
+
         setIsScanningReceipt(false);
       };
       reader.readAsDataURL(file);
