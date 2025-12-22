@@ -43,6 +43,7 @@ export interface SavingsGoal {
   name: string;
   target: number;
   current: number;
+  targetDate?: string;
 }
 
 export interface JournalEntry {
@@ -69,7 +70,7 @@ export interface AlertItem {
   text: string;
 }
 
-export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'help' | 'settings' | 'profile';
+export type TabId = 'dashboard' | 'systems' | 'finance' | 'journal' | 'help' | 'settings';
 
 export interface ModalConfig {
   isOpen: boolean;

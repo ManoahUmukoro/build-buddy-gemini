@@ -29,7 +29,6 @@ const defaultNavItems: NavItem[] = [
   { id: 'finance' as TabId, icon: DollarSign, label: 'Finances', moduleKey: 'finance' },
   { id: 'journal' as TabId, icon: Book, label: 'Journal', moduleKey: 'journal' },
   { id: 'help' as TabId, icon: HelpCircle, label: 'Help Center', moduleKey: 'help' },
-  { id: 'profile' as TabId, icon: User, label: 'Profile' },
   { id: 'settings' as TabId, icon: Settings, label: 'Settings' },
 ];
 
@@ -232,9 +231,9 @@ interface MobileNavProps {
 export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   const navItems = useNavItems();
   
-  // Show main items excluding profile and settings
+  // Show main items excluding settings (settings accessed via profile button)
   const mobileNavItems = navItems.filter(item => 
-    item.id !== 'profile' && item.id !== 'settings'
+    item.id !== 'settings'
   );
   
   return (
