@@ -47,7 +47,12 @@ serve(async (req) => {
       paymentData = data.data;
 
     } else if (provider === 'flutterwave') {
-      const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
+      // Flutterwave: verify by tx_ref (reference) if no transactionId provided
+      let verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${reference}`;
+      if (transactionId) {
+        verifyUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
+      }
+      const response = await fetch(verifyUrl, {
         headers: { 'Authorization': `Bearer ${config.secret_key}` },
       });
       const data = await response.json();

@@ -165,7 +165,34 @@ export function useEntitlements(): Entitlements {
   }, [user, fetchEntitlements]);
 
   const isPro = userPlan === 'pro' && planStatus === 'active';
-  const currentPlanFeatures = planFeatures?.[userPlan] || planFeatures?.free;
+  
+  // Default plan features if not configured in admin_settings
+  const defaultPlanFeatures: Record<string, PlanFeatures> = {
+    free: {
+      ai_chat: false,
+      receipt_scanning: false,
+      auto_categorize: false,
+      daily_digest: false,
+      weekly_digest: false,
+      max_systems: 3,
+      max_transactions: 50,
+      exports: false,
+      habit_suggestions: false,
+    },
+    pro: {
+      ai_chat: true,
+      receipt_scanning: true,
+      auto_categorize: true,
+      daily_digest: true,
+      weekly_digest: true,
+      max_systems: -1, // unlimited
+      max_transactions: -1, // unlimited
+      exports: true,
+      habit_suggestions: true,
+    },
+  };
+  
+  const currentPlanFeatures = planFeatures?.[userPlan] || defaultPlanFeatures[userPlan] || defaultPlanFeatures.free;
 
   // Helper to check if a feature is enabled for the current plan
   const isFeatureEnabled = (feature: keyof PlanFeatures): boolean => {
@@ -173,10 +200,10 @@ export function useEntitlements(): Entitlements {
     return !!currentPlanFeatures[feature];
   };
 
-  // Helper to check if a global feature toggle is enabled
+  // Helper to check if a global feature toggle is enabled (default to true if not configured)
   const isGlobalFeatureEnabled = (feature: keyof GlobalFeatures): boolean => {
-    if (!globalFeatures) return false;
-    return !!globalFeatures[feature];
+    if (!globalFeatures) return true; // Default to enabled if not configured
+    return globalFeatures[feature] !== false;
   };
 
   // Combine global toggles with plan entitlements
