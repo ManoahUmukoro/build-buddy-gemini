@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -16,35 +16,53 @@ export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchProfile = useCallback(async () => {
     if (!user) {
       setProfile(null);
       setLoading(false);
       return;
     }
 
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        if (error) {
-          console.error('Error fetching profile:', error);
-        } else {
-          setProfile(data);
-        }
-      } catch (error) {
+      if (error) {
         console.error('Error fetching profile:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        setProfile(data);
       }
-    };
-
-    fetchProfile();
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  return { profile, loading };
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const updateAvatarUrl = async (avatarUrl: string | null) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProfile((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : null));
+      return true;
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      return false;
+    }
+  };
+
+  return { profile, loading, refetch: fetchProfile, updateAvatarUrl };
 }

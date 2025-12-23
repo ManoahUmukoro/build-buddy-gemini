@@ -4,8 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PiggyBank, Target, Calendar, Plus, Minus, Loader2 } from 'lucide-react';
 import { SavingsGoal } from '@/lib/types';
-import { formatCurrency } from '@/lib/formatters';
 import { useSavingsEntries } from '@/hooks/useSavingsEntries';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { toast } from 'sonner';
 
 interface SavingsGoalModalProps {
@@ -25,6 +25,8 @@ export function SavingsGoalModal({
   onUpdateBalance,
   onClose 
 }: SavingsGoalModalProps) {
+  const { formatAmount, toBaseCurrency, fromBaseCurrency } = useUserSettings();
+  
   // Add Goal State
   const [goalName, setGoalName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -44,9 +46,12 @@ export function SavingsGoalModal({
       return;
     }
     
+    // Convert target from selected currency to base currency (NGN) for storage
+    const targetInBase = toBaseCurrency(parseFloat(targetAmount));
+    
     onSave({
       name: goalName.trim(),
-      target: parseFloat(targetAmount),
+      target: targetInBase,
       current: 0,
       targetDate: targetDate || undefined,
     });
@@ -60,29 +65,34 @@ export function SavingsGoalModal({
     }
     
     setIsSubmitting(true);
-    const numAmount = parseFloat(amount);
-    const currentBalance = goal.current || 0;
     
-    // Calculate new balance
-    const newBalance = operation === 'deposit'
-      ? currentBalance + numAmount 
-      : Math.max(0, currentBalance - numAmount);
+    // User entered amount in selected currency -> convert to base for storage
+    const numAmountInSelectedCurrency = parseFloat(amount);
+    const numAmountInBase = toBaseCurrency(numAmountInSelectedCurrency);
     
-    // Add entry to savings_entries table
+    const currentBalanceBase = goal.current || 0;
+    
+    // Calculate new balance in base currency
+    const newBalanceBase = operation === 'deposit'
+      ? currentBalanceBase + numAmountInBase 
+      : Math.max(0, currentBalanceBase - numAmountInBase);
+    
+    // Add entry to savings_entries table (stored in base currency)
     await addEntry({
       savings_goal_id: String(goal.id),
       type: operation,
-      amount: numAmount,
+      amount: numAmountInBase,
       note: note || null,
       date: new Date().toISOString().split('T')[0],
     });
     
-    // Update the goal balance
-    onUpdateBalance(goal.id, newBalance);
+    // Update the goal balance (in base currency)
+    onUpdateBalance(goal.id, newBalanceBase);
     
+    // Show success message with amount in selected currency
     toast.success(operation === 'deposit' 
-      ? `${formatCurrency(numAmount, currency)} deposited!` 
-      : `${formatCurrency(numAmount, currency)} withdrawn!`
+      ? `${currency}${numAmountInSelectedCurrency.toFixed(2)} deposited!` 
+      : `${currency}${numAmountInSelectedCurrency.toFixed(2)} withdrawn!`
     );
     
     setIsSubmitting(false);
@@ -165,7 +175,7 @@ export function SavingsGoalModal({
         <div>
           <h3 className="font-bold text-lg">{goal?.name}</h3>
           <p className="text-sm text-muted-foreground">
-            Current: {formatCurrency(goal?.current || 0, currency)} / {formatCurrency(goal?.target || 0, currency)}
+            Current: {formatAmount(goal?.current || 0)} / {formatAmount(goal?.target || 0)}
           </p>
         </div>
       </div>
@@ -223,31 +233,33 @@ export function SavingsGoalModal({
       </div>
 
       {/* Preview */}
-      {amount && parseFloat(amount) > 0 && (
-        <div className="bg-muted p-3 rounded-lg text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Current Balance:</span>
-            <span>{formatCurrency(goal?.current || 0, currency)}</span>
+      {amount && parseFloat(amount) > 0 && (() => {
+        const inputAmount = parseFloat(amount);
+        const inputAmountInBase = toBaseCurrency(inputAmount);
+        const currentBase = goal?.current || 0;
+        const newBalanceBase = operation === 'deposit'
+          ? currentBase + inputAmountInBase
+          : Math.max(0, currentBase - inputAmountInBase);
+
+        return (
+          <div className="bg-muted p-3 rounded-lg text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Current Balance:</span>
+              <span>{formatAmount(currentBase)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{operation === 'deposit' ? 'Adding:' : 'Removing:'}</span>
+              <span className={operation === 'deposit' ? 'text-success' : 'text-destructive'}>
+                {operation === 'deposit' ? '+' : '-'}{currency}{inputAmount.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between font-bold border-t border-border mt-2 pt-2">
+              <span>New Balance:</span>
+              <span>{formatAmount(newBalanceBase)}</span>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{operation === 'deposit' ? 'Adding:' : 'Removing:'}</span>
-            <span className={operation === 'deposit' ? 'text-success' : 'text-destructive'}>
-              {operation === 'deposit' ? '+' : '-'}{formatCurrency(parseFloat(amount), currency)}
-            </span>
-          </div>
-          <div className="flex justify-between font-bold border-t border-border mt-2 pt-2">
-            <span>New Balance:</span>
-            <span>
-              {formatCurrency(
-                operation === 'deposit' 
-                  ? (goal?.current || 0) + parseFloat(amount)
-                  : Math.max(0, (goal?.current || 0) - parseFloat(amount)),
-                currency
-              )}
-            </span>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="flex gap-2 pt-4">
         <Button variant="outline" onClick={onClose} className="flex-1" disabled={isSubmitting}>

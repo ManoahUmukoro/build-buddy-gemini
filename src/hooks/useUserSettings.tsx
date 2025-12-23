@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useExchangeRates, currencySymbolToCode, currencyCodeToSymbol } from './useExchangeRates';
 
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
@@ -22,6 +23,13 @@ interface UserSettingsContextType {
   updatePreferences: (updates: Partial<UserPreferences>) => Promise<void>;
   updateNotifications: (updates: Partial<UserNotifications>) => Promise<void>;
   refetch: () => Promise<void>;
+  // Currency conversion helpers
+  convert: (amount: number, fromCurrency: string, toCurrency: string) => number;
+  formatAmount: (amount: number) => string;
+  // Convert user input in selected currency to base (NGN)
+  toBaseCurrency: (amount: number) => number;
+  // Convert from base (NGN) to selected currency for display
+  fromBaseCurrency: (amount: number) => number;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -41,6 +49,7 @@ const UserSettingsContext = createContext<UserSettingsContextType | null>(null);
 
 export function UserSettingsProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const { convert, formatWithConversion, loading: ratesLoading } = useExchangeRates();
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [notifications, setNotifications] = useState<UserNotifications>(defaultNotifications);
   const [loading, setLoading] = useState(true);
@@ -184,15 +193,43 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
     await saveToDatabase(preferences, newNotifs);
   };
 
+  // Convert amount from base currency (NGN) to selected currency for display
+  const fromBaseCurrency = useCallback(
+    (amount: number): number => {
+      return convert(amount, 'NGN', preferences.currency);
+    },
+    [convert, preferences.currency]
+  );
+
+  // Convert amount from selected currency to base currency (NGN) for storage
+  const toBaseCurrency = useCallback(
+    (amount: number): number => {
+      return convert(amount, preferences.currency, 'NGN');
+    },
+    [convert, preferences.currency]
+  );
+
+  // Format amount in selected currency (converts from base NGN)
+  const formatAmount = useCallback(
+    (amount: number): string => {
+      return formatWithConversion(amount, preferences.currency, 'NGN');
+    },
+    [formatWithConversion, preferences.currency]
+  );
+
   return (
     <UserSettingsContext.Provider
       value={{
         preferences,
         notifications,
-        loading,
+        loading: loading || authLoading || ratesLoading,
         updatePreferences,
         updateNotifications,
         refetch: fetchSettings,
+        convert,
+        formatAmount,
+        toBaseCurrency,
+        fromBaseCurrency,
       }}
     >
       {children}
