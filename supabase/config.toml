@@ -20,3 +20,15 @@ verify_jwt = false
 
 [functions.admin-get-users]
 verify_jwt = true
+
+[functions.init-payment]
+verify_jwt = true
+
+[functions.verify-payment]
+verify_jwt = false
+
+[functions.payment-webhook]
+verify_jwt = false
+
+[functions.get-exchange-rates]
+verify_jwt = false

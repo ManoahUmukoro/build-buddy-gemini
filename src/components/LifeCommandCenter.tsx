@@ -60,8 +60,8 @@ export default function LifeCommandCenter() {
   // Admin Settings Hook for module gating
   const { isModuleEnabled } = useAdminSettings();
   
-  // User Settings for currency
-  const { preferences } = useUserSettings();
+  // User Settings for currency conversion
+  const { preferences, formatAmount } = useUserSettings();
   const currency = preferences.currency;
   
   // Local UI State

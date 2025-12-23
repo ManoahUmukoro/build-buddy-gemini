@@ -62,10 +62,11 @@ interface PlanConfig {
 export function ProfileTab() {
   const { user, signOut } = useAuth();
   const { isAdmin } = useAdminAuth();
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, updateAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -179,15 +180,14 @@ export function ProfileTab() {
     fetchPaymentHistory();
   }, [user]);
 
-  // Load avatar from localStorage
+  // Load avatar from profile
   useEffect(() => {
-    if (user?.id) {
-      const savedAvatar = localStorage.getItem(`avatar_${user.id}`);
-      setAvatarUrl(savedAvatar);
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
     } else {
       setAvatarUrl(null);
     }
-  }, [user?.id]);
+  }, [profile]);
 
   async function handleSaveProfile() {
     if (!user) return;
@@ -378,17 +378,41 @@ export function ProfileTab() {
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
-    // For now, use local storage for avatar (in production, use Supabase Storage)
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setAvatarUrl(result);
-      localStorage.setItem(`avatar_${user?.id}`, result);
-      toast.success('Profile picture updated!');
-    };
-    reader.readAsDataURL(file);
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl + '?t=' + Date.now(); // cache bust
+
+      // Update profile with new avatar URL
+      const success = await updateAvatarUrl(publicUrl);
+      if (success) {
+        setAvatarUrl(publicUrl);
+        toast.success('Profile picture updated!');
+      } else {
+        toast.error('Failed to save profile picture');
+      }
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      toast.error('Failed to upload profile picture');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   return (
@@ -401,7 +425,9 @@ export function ProfileTab() {
               onClick={handleAvatarClick}
               className="relative w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center cursor-pointer group overflow-hidden"
             >
-              {avatarUrl ? (
+              {uploadingAvatar ? (
+                <Loader2 className="animate-spin text-primary" size={24} />
+              ) : avatarUrl ? (
                 <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <User className="text-primary" size={32} />
