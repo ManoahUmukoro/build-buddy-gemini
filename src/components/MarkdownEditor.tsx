@@ -71,6 +71,26 @@ export function MarkdownEditor({
     { icon: Image, action: () => insertMarkdown('![', '](image-url)', 'alt text'), title: 'Image' },
   ];
 
+  // Sanitize URLs to prevent XSS via javascript:, data:, vbscript: protocols
+  const sanitizeUrl = (url: string): string => {
+    const allowedProtocols = ['http:', 'https:', 'mailto:'];
+    try {
+      const trimmedUrl = url.trim();
+      // Allow relative URLs and anchor links
+      if (trimmedUrl.startsWith('/') || trimmedUrl.startsWith('#') || trimmedUrl.startsWith('./') || trimmedUrl.startsWith('../')) {
+        return trimmedUrl;
+      }
+      const parsed = new URL(trimmedUrl, window.location.origin);
+      if (!allowedProtocols.includes(parsed.protocol)) {
+        return '#';
+      }
+      return trimmedUrl;
+    } catch {
+      // If URL parsing fails, block it unless it's a safe relative path
+      return '#';
+    }
+  };
+
   const renderMarkdown = (text: string) => {
     // Simple markdown to HTML conversion
     let html = text
@@ -89,9 +109,11 @@ export function MarkdownEditor({
       // Code blocks
       .replace(/```([\s\S]*?)```/gim, '<pre class="bg-muted p-3 rounded-md my-2 overflow-x-auto"><code>$1</code></pre>')
       .replace(/`(.*?)`/gim, '<code class="bg-muted px-1.5 py-0.5 rounded text-sm">$1</code>')
-      // Links and Images
-      .replace(/!\[(.*?)\]\((.*?)\)/gim, '<img src="$2" alt="$1" class="max-w-full h-auto rounded-md my-2" />')
-      .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-primary underline" target="_blank" rel="noopener">$1</a>')
+      // Links and Images - with URL sanitization
+      .replace(/!\[(.*?)\]\((.*?)\)/gim, (_, alt, url) => 
+        `<img src="${sanitizeUrl(url)}" alt="${alt}" class="max-w-full h-auto rounded-md my-2" />`)
+      .replace(/\[(.*?)\]\((.*?)\)/gim, (_, text, url) => 
+        `<a href="${sanitizeUrl(url)}" class="text-primary underline" target="_blank" rel="noopener">${text}</a>`)
       // Blockquotes
       .replace(/^&gt; (.*$)/gim, '<blockquote class="border-l-4 border-primary pl-4 my-2 text-muted-foreground italic">$1</blockquote>')
       // Lists
