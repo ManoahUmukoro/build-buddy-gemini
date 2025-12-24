@@ -43,7 +43,7 @@ export function useSupabaseData() {
   const [categories, setCategoriesState] = useState<string[]>(DEFAULT_CATEGORIES);
   const [subscriptions, setSubscriptionsState] = useState<Subscription[]>([]);
   const [savingsGoals, setSavingsGoalsState] = useState<SavingsGoal[]>([]);
-  const [geminiApiKey, setGeminiApiKeyState] = useState<string>('');
+  
 
   // Load all data
   const loadData = useCallback(async () => {
@@ -192,16 +192,6 @@ export function useSupabaseData() {
         })));
       }
 
-      // Load user settings (Gemini API key)
-      const { data: settingsData } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (settingsData?.gemini_api_key) {
-        setGeminiApiKeyState(settingsData.gemini_api_key);
-      }
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -562,20 +552,6 @@ export function useSupabaseData() {
       }
     });
   };
-
-  // Gemini API key operations
-  const setGeminiApiKey = async (apiKey: string) => {
-    if (!user) return;
-    setGeminiApiKeyState(apiKey);
-    
-    await withSaveStatus(async () => {
-      await supabase.from('user_settings').upsert({
-        user_id: user.id,
-        gemini_api_key: apiKey
-      }, { onConflict: 'user_id' });
-    });
-  };
-
   // Savings goals operations
   const setSavingsGoals = async (updater: SavingsGoal[] | ((prev: SavingsGoal[]) => SavingsGoal[])) => {
     if (!user) return;
@@ -624,7 +600,6 @@ export function useSupabaseData() {
     categories, setCategories,
     subscriptions, setSubscriptions,
     savingsGoals, setSavingsGoals,
-    geminiApiKey, setGeminiApiKey,
     refreshData: loadData
   };
 }
