@@ -47,7 +47,8 @@ export default function LifeCommandCenter() {
     budgets, setBudgets,
     categories, setCategories,
     subscriptions, setSubscriptions,
-    savingsGoals, setSavingsGoals
+    savingsGoals, setSavingsGoals,
+    geminiApiKey, setGeminiApiKey
   } = useSupabaseData();
   
   // AI Hook
@@ -784,6 +785,8 @@ export default function LifeCommandCenter() {
               <SettingsTab
                 onBackup={handleBackup}
                 onRestore={handleRestore}
+                geminiApiKey={geminiApiKey}
+                onSaveApiKey={setGeminiApiKey}
               />
             )}
           </div>

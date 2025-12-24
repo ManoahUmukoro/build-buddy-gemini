@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Settings, Download, Upload, Key, Check, User, Bell, 
+  Settings, Download, Upload, Key, Check, X, Eye, EyeOff, User, Bell, 
   Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,9 +30,11 @@ import { supabase } from '@/integrations/supabase/client';
 interface SettingsTabProps {
   onBackup: () => void;
   onRestore: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  geminiApiKey: string;
+  onSaveApiKey: (key: string) => void;
 }
 
-export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
+export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }: SettingsTabProps) {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { 
@@ -50,6 +52,9 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
   const [displayName, setDisplayName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   
+  const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
   
   const [savingSettings, setSavingSettings] = useState(false);
   
@@ -86,6 +91,31 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
     loadPlan();
   }, [user]);
 
+  // Save API key
+  const handleSaveApiKey = async () => {
+    setSavingApiKey(true);
+    try {
+      await onSaveApiKey(apiKeyInput);
+      toast.success('API key saved successfully');
+    } catch (error) {
+      toast.error('Failed to save API key');
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
+
+  const handleRemoveApiKey = async () => {
+    setSavingApiKey(true);
+    try {
+      await onSaveApiKey('');
+      setApiKeyInput('');
+      toast.success('API key removed');
+    } catch (error) {
+      toast.error('Failed to remove API key');
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
 
   // Save profile
   const handleSaveProfile = async () => {
@@ -187,7 +217,7 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
     }
   };
 
-  
+  const isApiKeyConnected = !!geminiApiKey;
 
   if (settingsLoading || profileLoading) {
     return (
@@ -304,22 +334,58 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
             </CardContent>
           </Card>
 
-          {/* AI Status */}
+          {/* AI Configuration */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Key size={18} />
-                AI Features
+                AI Configuration
               </CardTitle>
-              <CardDescription>AI-powered features are enabled automatically</CardDescription>
+              <CardDescription>Connect your Gemini API key for AI features</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-green-600">Connected</span>
+                <div className={`w-2 h-2 rounded-full ${isApiKeyConnected ? 'bg-green-500' : 'bg-muted-foreground'}`} />
+                <span className={isApiKeyConnected ? 'text-green-600' : 'text-muted-foreground'}>
+                  {isApiKeyConnected ? 'Connected' : 'Not connected'}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                AI features are powered by Lovable AI and require no additional configuration.
+
+              <div className="relative">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Enter your Gemini API key"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveApiKey} disabled={savingApiKey || !apiKeyInput || apiKeyInput === geminiApiKey} className="flex-1">
+                  <Check size={14} className="mr-2" />
+                  Save Key
+                </Button>
+                {isApiKeyConnected && (
+                  <Button variant="outline" onClick={handleRemoveApiKey} disabled={savingApiKey}>
+                    <X size={14} className="mr-2" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
+                💡 Get your free API key from{' '}
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  Google AI Studio
+                </a>
               </p>
             </CardContent>
           </Card>

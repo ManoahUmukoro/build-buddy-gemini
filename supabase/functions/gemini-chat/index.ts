@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,7 +15,7 @@ serve(async (req) => {
   try {
     const { type, messages, context } = await req.json();
     
-    // Verify user authentication
+    // Get user's Gemini API key from database
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -23,13 +24,41 @@ serve(async (req) => {
       );
     }
 
-    // Use Lovable AI Gateway - no user API keys needed
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY is not configured');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'AI service not configured' }),
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's Gemini API key from settings
+    const { data: settings, error: settingsError } = await supabase
+      .from('user_settings')
+      .select('gemini_api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error('Error fetching settings:', settingsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch user settings' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const geminiApiKey = settings?.gemini_api_key;
+    if (!geminiApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'No Gemini API key configured. Please add your API key in Settings.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -87,66 +116,63 @@ serve(async (req) => {
         systemPrompt = 'You are a helpful AI assistant.';
     }
 
-    // Build messages for Lovable AI (OpenAI-compatible format)
-    const apiMessages: Array<{ role: string; content: string }> = [
-      { role: 'system', content: systemPrompt }
+    // Build messages for Gemini API
+    const apiMessages = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: 'Understood. I will help you.' }] },
     ];
 
     if (messages && messages.length > 0) {
       for (const msg of messages) {
         apiMessages.push({
-          role: msg.role === 'model' ? 'assistant' : msg.role,
-          content: msg.content
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
         });
       }
     }
 
     if (userPrompt) {
-      apiMessages.push({ role: 'user', content: userPrompt });
+      apiMessages.push({ role: 'user', parts: [{ text: userPrompt }] });
     }
 
-    console.log('Calling Lovable AI with type:', type);
+    console.log('Calling Gemini API with type:', type);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: apiMessages,
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: apiMessages,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
-      if (response.status === 429) {
+      if (response.status === 400 && errorText.includes('API_KEY_INVALID')) {
         return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits depleted. Please add credits to continue.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Invalid Gemini API key. Please check your API key in Settings.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       return new Response(
-        JSON.stringify({ error: 'AI service error. Please try again.' }),
+        JSON.stringify({ error: 'Gemini API error. Please check your API key.' }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    console.log('Lovable AI response received for type:', type);
+    console.log('Gemini response received for type:', type);
 
     return new Response(
       JSON.stringify({ content }),
