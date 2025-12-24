@@ -13,10 +13,51 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create client with user's auth token to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create admin client for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { reference, provider, transactionId } = await req.json();
+
+    // Verify the payment belongs to the authenticated user
+    const { data: existingPayment } = await supabase
+      .from('payment_history')
+      .select('*')
+      .eq('reference', reference)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!existingPayment) {
+      return new Response(
+        JSON.stringify({ error: 'Payment not found or unauthorized' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get payment provider settings
     const { data: providerSettings } = await supabase
@@ -62,57 +103,44 @@ serve(async (req) => {
     } else if (provider === 'stripe') {
       // For Stripe, we verify by checking the payment record
       // In production, you'd use webhooks, but this works for verification
-      const { data: payment } = await supabase
-        .from('payment_history')
-        .select('*')
-        .eq('reference', reference)
-        .single();
-      
-      if (payment) {
+      if (existingPayment) {
         // Mark as success if it exists (webhook would have updated it)
         verified = true;
-        paymentData = payment;
+        paymentData = existingPayment;
       }
     }
 
     if (verified) {
-      // Get the payment record to find user
-      const { data: payment } = await supabase
+      // Update payment status
+      await supabase
         .from('payment_history')
-        .select('*')
-        .eq('reference', reference)
+        .update({ status: 'success' })
+        .eq('reference', reference);
+
+      // Upgrade user plan
+      const { data: existingPlan } = await supabase
+        .from('user_plans')
+        .select('id')
+        .eq('user_id', user.id)
         .single();
 
-      if (payment) {
-        // Update payment status
+      if (existingPlan) {
         await supabase
-          .from('payment_history')
-          .update({ status: 'success' })
-          .eq('reference', reference);
-
-        // Upgrade user plan
-        const { data: existingPlan } = await supabase
           .from('user_plans')
-          .select('id')
-          .eq('user_id', payment.user_id)
-          .single();
-
-        if (existingPlan) {
-          await supabase
-            .from('user_plans')
-            .update({ plan: payment.plan, status: 'active', updated_at: new Date().toISOString() })
-            .eq('user_id', payment.user_id);
-        } else {
-          await supabase
-            .from('user_plans')
-            .insert({ user_id: payment.user_id, plan: payment.plan, status: 'active' });
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, plan: payment.plan }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+          .update({ plan: existingPayment.plan, status: 'active', updated_at: new Date().toISOString() })
+          .eq('user_id', user.id);
+      } else {
+        await supabase
+          .from('user_plans')
+          .insert({ user_id: user.id, plan: existingPayment.plan, status: 'active' });
       }
+
+      console.log(`Payment verified for user ${user.id}, reference: ${reference}`);
+
+      return new Response(
+        JSON.stringify({ success: true, plan: existingPayment.plan }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Update payment as failed

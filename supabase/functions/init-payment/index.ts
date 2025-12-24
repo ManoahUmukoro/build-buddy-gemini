@@ -13,10 +13,40 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const { provider, planId, userId, email, amount, currency, callbackUrl } = await req.json();
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create client with user's auth token to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use authenticated user's ID and email
+    const userId = user.id;
+    const userEmail = user.email;
+
+    // Create admin client for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { provider, planId, amount, currency, callbackUrl } = await req.json();
 
     // Get payment provider settings
     const { data: providerSettings } = await supabase
@@ -48,7 +78,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email,
+          email: userEmail,
           amount: amount * 100, // Paystack uses kobo
           reference,
           callback_url: callbackUrl,
@@ -76,7 +106,7 @@ serve(async (req) => {
           amount,
           currency,
           redirect_url: callbackUrl,
-          customer: { email },
+          customer: { email: userEmail },
           meta: { userId, planId },
           customizations: {
             title: 'LifeOS Pro Subscription',
@@ -99,7 +129,7 @@ serve(async (req) => {
       params.append('mode', 'payment');
       params.append('success_url', `${callbackUrl}?reference=${reference}&provider=stripe`);
       params.append('cancel_url', `${callbackUrl}?cancelled=true`);
-      params.append('customer_email', email);
+      params.append('customer_email', userEmail || '');
       params.append('line_items[0][price_data][currency]', currency.toLowerCase());
       params.append('line_items[0][price_data][product_data][name]', 'LifeOS Pro Subscription');
       params.append('line_items[0][price_data][unit_amount]', String(Math.round(amount * 100)));
@@ -136,6 +166,8 @@ serve(async (req) => {
       payment_provider: provider,
       status: 'pending',
     });
+
+    console.log(`Payment initiated for user ${userId}, provider: ${provider}, reference: ${reference}`);
 
     return new Response(
       JSON.stringify({ paymentUrl, reference }),

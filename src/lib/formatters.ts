@@ -27,8 +27,17 @@ export function formatTimer(seconds: number): string {
 export function formatText(text: string | null | undefined): React.ReactNode {
   if (text === null || text === undefined) return null;
   const safeText = typeof text === 'string' ? text : JSON.stringify(text);
-  let formatted = safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Escape HTML entities FIRST to prevent XSS
+  let escaped = safeText
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Then apply markdown formatting safely
+  let formatted = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
   return React.createElement('span', { dangerouslySetInnerHTML: { __html: formatted } });
 }
 

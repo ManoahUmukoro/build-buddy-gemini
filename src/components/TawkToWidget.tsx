@@ -90,20 +90,36 @@ export function TawkToWidget() {
       return;
     }
 
-    // Extract widget ID from property ID
-    // Tawk.to property IDs are in format: propertyId/widgetId or just a combined string
+    // Validate and extract widget ID from property ID
+    // Tawk.to property IDs should be alphanumeric with format: propertyId/widgetId
+    const TAWKTO_ID_REGEX = /^[a-f0-9]{24}\/[a-z0-9]+$/i;
+    const TAWKTO_PROPERTY_REGEX = /^[a-f0-9]{24}$/i;
+    
     const parts = config.propertyId.split('/');
     const propertyId = parts[0];
     const widgetId = parts[1] || '1';
+    
+    // Validate property ID format
+    if (!TAWKTO_PROPERTY_REGEX.test(propertyId)) {
+      console.error('Invalid Tawk.to property ID format');
+      return;
+    }
+    
+    // Validate widget ID (alphanumeric only)
+    if (!/^[a-z0-9]+$/i.test(widgetId)) {
+      console.error('Invalid Tawk.to widget ID format');
+      return;
+    }
 
-    // Load Tawk.to script
+    // Load Tawk.to script - only from whitelisted domain
+    const ALLOWED_DOMAIN = 'embed.tawk.to';
     window.Tawk_API = window.Tawk_API || {};
     window.Tawk_LoadStart = new Date();
 
     const script = document.createElement('script');
     script.id = 'tawkto-script';
     script.async = true;
-    script.src = `https://embed.tawk.to/${propertyId}/${widgetId}`;
+    script.src = `https://${ALLOWED_DOMAIN}/${propertyId}/${widgetId}`;
     script.charset = 'UTF-8';
     script.setAttribute('crossorigin', '*');
 
