@@ -173,6 +173,13 @@ export function useAI() {
     });
   };
 
+  const journalRecap = async (activityFeed: Array<{ event_type: string; event_data: Record<string, any>; created_at: string }>) => {
+    return await callAI({
+      type: 'journal-recap',
+      context: { activityFeed }
+    });
+  };
+
   return {
     smartSort,
     breakdownTask,
@@ -185,6 +192,7 @@ export function useAI() {
     autoCategorize,
     generateSchedule,
     generateHabits,
-    weeklyReport
+    weeklyReport,
+    journalRecap
   };
 }

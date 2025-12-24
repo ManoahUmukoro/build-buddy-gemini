@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { Book, Save, Loader2, MessageCircle, Edit2, BarChart3 } from 'lucide-react';
+import { Book, Save, Loader2, MessageCircle, Edit2, BarChart3, Sparkles, Wand2 } from 'lucide-react';
 import { JournalEntry, ChatMessage } from '@/lib/types';
 import { MOODS } from '@/lib/constants';
 import { Modal } from '@/components/Modal';
 import { ChatInterface } from '@/components/ChatInterface';
+import { Button } from '@/components/ui/button';
+import { useActivityFeed } from '@/hooks/useActivityFeed';
+import { useAI } from '@/hooks/useAI';
+import { toast } from 'sonner';
 
 interface JournalTabProps {
   journalEntries: JournalEntry[];
@@ -42,6 +46,44 @@ export function JournalTab({
   onWeeklyReport,
 }: JournalTabProps) {
   const [isJournalChatOpen, setIsJournalChatOpen] = useState(false);
+  const [isGeneratingRecap, setIsGeneratingRecap] = useState(false);
+  const { getTodayActivities } = useActivityFeed();
+  const ai = useAI();
+
+  const handleRecapMyDay = async () => {
+    const todayActivities = getTodayActivities();
+    
+    if (todayActivities.length === 0) {
+      toast.info("No activities logged today yet. Complete some tasks or habits first!");
+      return;
+    }
+
+    setIsGeneratingRecap(true);
+    
+    try {
+      const recap = await ai.journalRecap(todayActivities.map(a => ({
+        event_type: a.event_type,
+        event_data: a.event_data,
+        created_at: a.created_at
+      })));
+
+      if (recap) {
+        setTodayEntry(prev => ({
+          ...prev,
+          thoughts: recap,
+          mood: prev.mood || 3,
+        }));
+        toast.success("Journal draft generated! Feel free to edit it.");
+      } else {
+        toast.error("Failed to generate recap. Please try again.");
+      }
+    } catch (error) {
+      console.error('Recap generation failed:', error);
+      toast.error("Failed to generate recap.");
+    } finally {
+      setIsGeneratingRecap(false);
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20 md:pb-0">
@@ -52,13 +94,30 @@ export function JournalTab({
             <Book size={18} />
             {editingEntryId ? 'Edit Entry' : "Today's Journal"}
           </h3>
-          <button 
-            onClick={onWeeklyReport} 
-            className="text-primary text-xs bg-primary/10 px-3 py-1 rounded-full font-bold hover:bg-primary/20 flex items-center gap-1" 
-            title="Generate Insight"
-          >
-            <BarChart3 size={12} /> Weekly Report
-          </button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRecapMyDay}
+              disabled={isGeneratingRecap}
+              className="text-primary text-xs bg-primary/10 hover:bg-primary/20"
+              title="Generate journal draft from today's activities"
+            >
+              {isGeneratingRecap ? (
+                <Loader2 className="animate-spin h-3 w-3 mr-1" />
+              ) : (
+                <Wand2 size={12} className="mr-1" />
+              )}
+              Recap My Day
+            </Button>
+            <button 
+              onClick={onWeeklyReport} 
+              className="text-primary text-xs bg-primary/10 px-3 py-1 rounded-full font-bold hover:bg-primary/20 flex items-center gap-1" 
+              title="Generate Insight"
+            >
+              <BarChart3 size={12} /> Weekly Report
+            </button>
+          </div>
         </div>
         
         <form onSubmit={onSaveJournal} className="space-y-4">
@@ -128,7 +187,13 @@ export function JournalTab({
       {/* Past Entries */}
       <div className="space-y-4">
         <h3 className="font-bold text-card-foreground">Past Entries</h3>
-        {journalEntries.map((entry, idx) => (
+        {journalEntries.length === 0 ? (
+          <div className="bg-card p-8 rounded-xl border border-border text-center text-muted-foreground">
+            <Book className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <p>No journal entries yet.</p>
+            <p className="text-sm mt-1">Start journaling to track your thoughts and growth!</p>
+          </div>
+        ) : journalEntries.map((entry, idx) => (
           <div key={`${entry.id}-${idx}`} className="bg-card p-5 rounded-xl shadow-soft border border-border">
             <div className="flex justify-between items-start mb-3 border-b border-border pb-2">
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{entry.date}</span>

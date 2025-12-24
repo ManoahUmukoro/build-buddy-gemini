@@ -6,6 +6,7 @@ import { Play, Pause, RotateCcw, Timer, Target, Check, X, Minimize2, Maximize2 }
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { FocusReflectionModal } from '@/components/FocusReflectionModal';
 
 interface Task {
   id: string | number;
@@ -15,7 +16,7 @@ interface Task {
 
 interface FloatingFocusTimerProps {
   todayTasks?: Task[];
-  onSessionComplete?: (duration: number, taskLabel: string) => void;
+  onSessionComplete?: (duration: number, taskLabel: string, reflection?: string) => void;
 }
 
 const DURATION_OPTIONS = [
@@ -38,6 +39,8 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete }: Float
   const [isRunning, setIsRunning] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(25 * 60);
+  const [showReflectionModal, setShowReflectionModal] = useState(false);
+  const [completedSessionData, setCompletedSessionData] = useState<{ taskLabel: string; duration: number } | null>(null);
 
   const incompleteTasks = todayTasks.filter(t => !t.done);
   
@@ -75,14 +78,10 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete }: Float
     };
   }, [isRunning, timeRemaining, hasStarted]);
 
-  const handleSessionComplete = async () => {
+  const handleSessionComplete = async (skipReflection = false) => {
     setIsRunning(false);
     const taskLabel = getTaskLabel();
     const durationMinutes = Math.ceil(sessionDuration / 60);
-
-    toast.success('🎉 Focus Session Complete!', {
-      description: `Great work on "${taskLabel}" for ${durationMinutes} minutes!`,
-    });
 
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Focus Session Complete! 🎉', {
@@ -91,23 +90,58 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete }: Float
       });
     }
 
-    if (user) {
-      try {
-        const taskId = selectedTask !== 'custom' && selectedTask ? selectedTask : null;
-        await supabase.from('focus_sessions').insert({
+    // Show reflection modal
+    setCompletedSessionData({ taskLabel, duration: durationMinutes });
+    setShowReflectionModal(true);
+  };
+
+  const saveSession = async (reflection?: string) => {
+    if (!completedSessionData || !user) return;
+
+    const { taskLabel, duration: durationMinutes } = completedSessionData;
+    const taskId = selectedTask !== 'custom' && selectedTask ? selectedTask : null;
+
+    try {
+      await supabase.from('focus_sessions').insert({
+        user_id: user.id,
+        task_id: taskId,
+        task_label: taskLabel,
+        duration_minutes: durationMinutes,
+        completed_at: new Date().toISOString(),
+      });
+
+      // Log reflection to activity feed if provided
+      if (reflection) {
+        await supabase.from('activity_feed').insert({
           user_id: user.id,
-          task_id: taskId,
-          task_label: taskLabel,
-          duration_minutes: durationMinutes,
-          completed_at: new Date().toISOString(),
+          event_type: 'focus_reflection',
+          event_data: {
+            task_label: taskLabel,
+            duration_minutes: durationMinutes,
+            reflection: reflection,
+          },
+          related_table: 'focus_sessions',
         });
-      } catch (error) {
-        console.error('Failed to log focus session:', error);
       }
+    } catch (error) {
+      console.error('Failed to log focus session:', error);
     }
 
-    onSessionComplete?.(durationMinutes, taskLabel);
+    toast.success('🎉 Focus Session Complete!', {
+      description: `Great work on "${taskLabel}" for ${durationMinutes} minutes!`,
+    });
+
+    onSessionComplete?.(durationMinutes, taskLabel, reflection);
     resetTimer();
+    setCompletedSessionData(null);
+  };
+
+  const handleReflectionSave = (reflection: string) => {
+    saveSession(reflection);
+  };
+
+  const handleReflectionSkip = () => {
+    saveSession();
   };
 
   const startTimer = () => {
@@ -142,153 +176,186 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete }: Float
 
   if (!isOpen) {
     return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-primary text-primary-foreground p-3 rounded-full shadow-lg hover:scale-110 transition-transform"
-        title="Open Focus Timer"
-      >
-        <Timer className="h-6 w-6" />
-      </button>
+      <>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-primary text-primary-foreground p-3 rounded-full shadow-lg hover:scale-110 transition-transform"
+          title="Open Focus Timer"
+        >
+          <Timer className="h-6 w-6" />
+        </button>
+
+        <FocusReflectionModal
+          isOpen={showReflectionModal}
+          onClose={() => setShowReflectionModal(false)}
+          taskLabel={completedSessionData?.taskLabel || ''}
+          durationMinutes={completedSessionData?.duration || 0}
+          onSave={handleReflectionSave}
+          onSkip={handleReflectionSkip}
+        />
+      </>
     );
   }
 
   if (isMinimized && hasStarted) {
     return (
-      <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-card border border-border rounded-full shadow-xl p-3 flex items-center gap-3">
-        <div className={`text-lg font-bold tabular-nums ${isRunning ? 'text-primary' : 'text-muted-foreground'}`}>
-          {formatTime(timeRemaining)}
+      <>
+        <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-card border border-border rounded-full shadow-xl p-3 flex items-center gap-3">
+          <div className={`text-lg font-bold tabular-nums ${isRunning ? 'text-primary' : 'text-muted-foreground'}`}>
+            {formatTime(timeRemaining)}
+          </div>
+          {isRunning ? (
+            <Button size="icon" variant="ghost" onClick={pauseTimer} className="h-8 w-8">
+              <Pause className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="icon" variant="ghost" onClick={startTimer} className="h-8 w-8">
+              <Play className="h-4 w-4" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" onClick={() => setIsMinimized(false)} className="h-8 w-8">
+            <Maximize2 className="h-4 w-4" />
+          </Button>
         </div>
-        {isRunning ? (
-          <Button size="icon" variant="ghost" onClick={pauseTimer} className="h-8 w-8">
-            <Pause className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button size="icon" variant="ghost" onClick={startTimer} className="h-8 w-8">
-            <Play className="h-4 w-4" />
-          </Button>
-        )}
-        <Button size="icon" variant="ghost" onClick={() => setIsMinimized(false)} className="h-8 w-8">
-          <Maximize2 className="h-4 w-4" />
-        </Button>
-      </div>
+
+        <FocusReflectionModal
+          isOpen={showReflectionModal}
+          onClose={() => setShowReflectionModal(false)}
+          taskLabel={completedSessionData?.taskLabel || ''}
+          durationMinutes={completedSessionData?.duration || 0}
+          onSave={handleReflectionSave}
+          onSkip={handleReflectionSkip}
+        />
+      </>
     );
   }
 
   return (
-    <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-card border border-border rounded-xl shadow-xl w-72 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-border bg-muted/50">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Timer className="h-4 w-4 text-primary" />
-          Focus Timer
-        </div>
-        <div className="flex items-center gap-1">
-          {hasStarted && (
-            <Button size="icon" variant="ghost" onClick={() => setIsMinimized(true)} className="h-7 w-7">
-              <Minimize2 className="h-3 w-3" />
-            </Button>
-          )}
-          <Button size="icon" variant="ghost" onClick={() => { setIsOpen(false); resetTimer(); }} className="h-7 w-7">
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-4">
-        {!hasStarted ? (
-          <>
-            {/* Duration */}
-            <Select value={selectedDuration} onValueChange={setSelectedDuration}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Duration" />
-              </SelectTrigger>
-              <SelectContent>
-                {DURATION_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Task */}
-            <Select value={selectedTask} onValueChange={setSelectedTask}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Focus on..." />
-              </SelectTrigger>
-              <SelectContent>
-                {incompleteTasks.map(task => (
-                  <SelectItem key={String(task.id)} value={String(task.id)}>
-                    <span className="truncate max-w-[180px] block">{task.text}</span>
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">Custom...</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {selectedTask === 'custom' && (
-              <Input
-                placeholder="What are you focusing on?"
-                value={customTaskLabel}
-                onChange={(e) => setCustomTaskLabel(e.target.value)}
-                className="h-9 text-sm"
-              />
+    <>
+      <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-card border border-border rounded-xl shadow-xl w-72 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-3 border-b border-border bg-muted/50">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Timer className="h-4 w-4 text-primary" />
+            Focus Timer
+          </div>
+          <div className="flex items-center gap-1">
+            {hasStarted && (
+              <Button size="icon" variant="ghost" onClick={() => setIsMinimized(true)} className="h-7 w-7">
+                <Minimize2 className="h-3 w-3" />
+              </Button>
             )}
-
-            <Button onClick={startTimer} className="w-full" size="sm">
-              <Play className="h-4 w-4 mr-2" />
-              Start Focus
+            <Button size="icon" variant="ghost" onClick={() => { setIsOpen(false); resetTimer(); }} className="h-7 w-7">
+              <X className="h-3 w-3" />
             </Button>
-          </>
-        ) : (
-          <>
-            {/* Timer Display */}
-            <div className="relative flex justify-center">
-              <div className="relative w-24 h-24">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="none" className="text-muted" />
-                  <circle
-                    cx="48" cy="48" r="42"
-                    stroke="currentColor" strokeWidth="6" fill="none"
-                    strokeDasharray={`${2 * Math.PI * 42}`}
-                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - progress / 100)}`}
-                    className="text-primary transition-all duration-1000"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl font-bold tabular-nums">{formatTime(timeRemaining)}</span>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {!hasStarted ? (
+            <>
+              {/* Duration */}
+              <Select value={selectedDuration} onValueChange={setSelectedDuration}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Task */}
+              <Select value={selectedTask} onValueChange={setSelectedTask}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Focus on..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {incompleteTasks.map(task => (
+                    <SelectItem key={String(task.id)} value={String(task.id)}>
+                      <span className="truncate max-w-[180px] block">{task.text}</span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {selectedTask === 'custom' && (
+                <Input
+                  placeholder="What are you focusing on?"
+                  value={customTaskLabel}
+                  onChange={(e) => setCustomTaskLabel(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              )}
+
+              <Button onClick={startTimer} className="w-full" size="sm">
+                <Play className="h-4 w-4 mr-2" />
+                Start Focus
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Timer Display */}
+              <div className="relative flex justify-center">
+                <div className="relative w-24 h-24">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="none" className="text-muted" />
+                    <circle
+                      cx="48" cy="48" r="42"
+                      stroke="currentColor" strokeWidth="6" fill="none"
+                      strokeDasharray={`${2 * Math.PI * 42}`}
+                      strokeDashoffset={`${2 * Math.PI * 42 * (1 - progress / 100)}`}
+                      className="text-primary transition-all duration-1000"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xl font-bold tabular-nums">{formatTime(timeRemaining)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Task Badge */}
-            <div className="text-center">
-              <div className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-full">
-                <Target className="h-3 w-3" />
-                <span className="truncate max-w-[150px]">{getTaskLabel()}</span>
+              {/* Task Badge */}
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-full">
+                  <Target className="h-3 w-3" />
+                  <span className="truncate max-w-[150px]">{getTaskLabel()}</span>
+                </div>
               </div>
-            </div>
 
-            {/* Controls */}
-            <div className="flex justify-center gap-2">
-              {isRunning ? (
-                <Button onClick={pauseTimer} variant="secondary" size="sm">
-                  <Pause className="h-4 w-4 mr-1" /> Pause
+              {/* Controls */}
+              <div className="flex justify-center gap-2">
+                {isRunning ? (
+                  <Button onClick={pauseTimer} variant="secondary" size="sm">
+                    <Pause className="h-4 w-4 mr-1" /> Pause
+                  </Button>
+                ) : (
+                  <Button onClick={startTimer} size="sm">
+                    <Play className="h-4 w-4 mr-1" /> Resume
+                  </Button>
+                )}
+                <Button onClick={resetTimer} variant="outline" size="sm">
+                  <RotateCcw className="h-4 w-4" />
                 </Button>
-              ) : (
-                <Button onClick={startTimer} size="sm">
-                  <Play className="h-4 w-4 mr-1" /> Resume
+                <Button onClick={() => handleSessionComplete()} variant="ghost" size="sm">
+                  <Check className="h-4 w-4" />
                 </Button>
-              )}
-              <Button onClick={resetTimer} variant="outline" size="sm">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Button onClick={handleSessionComplete} variant="ghost" size="sm">
-                <Check className="h-4 w-4" />
-              </Button>
-            </div>
-          </>
-        )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      <FocusReflectionModal
+        isOpen={showReflectionModal}
+        onClose={() => setShowReflectionModal(false)}
+        taskLabel={completedSessionData?.taskLabel || ''}
+        durationMinutes={completedSessionData?.duration || 0}
+        onSave={handleReflectionSave}
+        onSkip={handleReflectionSkip}
+      />
+    </>
   );
 }
