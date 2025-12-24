@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_feed: {
+        Row: {
+          created_at: string
+          event_data: Json
+          event_type: string
+          id: string
+          related_id: string | null
+          related_table: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_data?: Json
+          event_type: string
+          id?: string
+          related_id?: string | null
+          related_table?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_data?: Json
+          event_type?: string
+          id?: string
+          related_id?: string | null
+          related_table?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_settings: {
         Row: {
           id: string
@@ -512,6 +542,7 @@ export type Database = {
           day: string
           done: boolean
           id: string
+          system_id: string | null
           text: string
           time: string | null
           updated_at: string
@@ -523,6 +554,7 @@ export type Database = {
           day: string
           done?: boolean
           id?: string
+          system_id?: string | null
           text: string
           time?: string | null
           updated_at?: string
@@ -534,12 +566,21 @@ export type Database = {
           day?: string
           done?: boolean
           id?: string
+          system_id?: string | null
           text?: string
           time?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "systems"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -660,6 +701,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_context: { Args: { uid: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

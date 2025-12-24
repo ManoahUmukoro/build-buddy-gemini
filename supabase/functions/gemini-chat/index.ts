@@ -26,6 +26,8 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -62,8 +64,39 @@ serve(async (req) => {
       );
     }
 
+    // Fetch user context for context-aware AI types
+    let userContext: any = null;
+    const contextAwareTypes = ['finance-chat', 'journal-chat', 'life-audit', 'daily-briefing', 'journal-recap'];
+    
+    if (contextAwareTypes.includes(type)) {
+      try {
+        // Use service role client to call the function
+        const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+        const { data: contextData, error: contextError } = await adminSupabase
+          .rpc('get_user_context', { uid: user.id });
+        
+        if (!contextError && contextData) {
+          userContext = contextData;
+          console.log('User context loaded for', type);
+        }
+      } catch (err) {
+        console.log('Context fetch failed, continuing without:', err);
+      }
+    }
+
     let systemPrompt = '';
     let userPrompt = '';
+
+    // Build context string for injection
+    const contextString = userContext ? `
+Current User Context:
+- Tasks Today: ${userContext.tasks?.today_completed || 0}/${userContext.tasks?.today_total || 0} completed (${userContext.tasks?.completion_rate || 0}%)
+- Habits Today: ${userContext.habits?.today_completed || 0}/${userContext.habits?.today_total || 0} completed
+- Mood Trend: ${userContext.mood?.trend || 'unknown'} (avg: ${userContext.mood?.recent_average || 'N/A'}/5)
+- Monthly Finances: Income ${userContext.finances?.monthly_income || 0}, Expenses ${userContext.finances?.monthly_expenses || 0}, Balance ${userContext.finances?.monthly_balance || 0}
+- Total Savings: ${userContext.finances?.total_savings || 0}
+- Active Goals: ${userContext.goals?.length || 0}
+` : '';
 
     switch (type) {
       case 'smart-sort':
@@ -79,11 +112,13 @@ serve(async (req) => {
         userPrompt = `Write a draft for: "${context?.taskText}"`;
         break;
       case 'life-audit':
-        systemPrompt = 'You are a life coach. Provide actionable insights and recommendations.';
+        systemPrompt = `You are a life coach with deep insight into the user's patterns. Provide actionable insights and recommendations based on their actual data.
+${contextString}`;
         userPrompt = `Analyze: Habits ${context?.completedHabits}/${context?.totalHabits}, Balance: ${context?.balance}, Tasks: ${context?.totalTasks}, Journal: ${context?.journalCount}`;
         break;
       case 'daily-briefing':
-        systemPrompt = 'You are a personal assistant. Provide a motivating daily briefing.';
+        systemPrompt = `You are a personal assistant with full context of the user's life. Provide a motivating and actionable daily briefing.
+${contextString}`;
         userPrompt = `Daily briefing: ${context?.todayTasks} tasks, ${context?.habitsToComplete} habits left, balance: ${context?.balance}`;
         break;
       case 'finance-analysis':
@@ -91,10 +126,17 @@ serve(async (req) => {
         userPrompt = `Analyze: Income ${context?.totalIncome}, Expenses ${context?.totalExpense}, Balance ${context?.balance}, Categories: ${JSON.stringify(context?.expenseData)}`;
         break;
       case 'finance-chat':
-        systemPrompt = 'You are a friendly financial advisor. Answer personal finance questions.';
+        systemPrompt = `You are a friendly financial advisor who knows the user's complete financial situation. Answer personal finance questions with specific, actionable advice.
+${contextString}`;
         break;
       case 'journal-chat':
-        systemPrompt = 'You are a supportive journaling companion. Help reflect on experiences.';
+        systemPrompt = `You are a supportive journaling companion who understands the user's patterns, moods, and progress. Help reflect on experiences with empathy and insight.
+${contextString}`;
+        break;
+      case 'journal-recap':
+        systemPrompt = `You are a thoughtful journaling assistant. Based on the user's activity today, generate a reflective journal entry draft they can edit. Be warm, personal, and highlight key moments.
+${contextString}`;
+        userPrompt = `Generate a journal entry recap for today based on this activity feed: ${JSON.stringify(context?.activityFeed || [])}. Include reflections on tasks completed, habits done, money spent, and any focus sessions.`;
         break;
       case 'auto-categorize':
         systemPrompt = 'You are a transaction categorizer. Return only the category name.';
@@ -135,7 +177,7 @@ serve(async (req) => {
       apiMessages.push({ role: 'user', parts: [{ text: userPrompt }] });
     }
 
-    console.log('Calling Gemini API with type:', type);
+    console.log('Calling Gemini API with type:', type, 'has context:', !!userContext);
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
