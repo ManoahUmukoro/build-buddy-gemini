@@ -16,6 +16,7 @@ import { AICommandButton } from '@/components/AICommandButton';
 import { FloatingFocusTimer } from '@/components/FloatingFocusTimer';
 import { ModuleDisabled } from '@/components/ModuleDisabled';
 import { SavingsGoalModal } from '@/components/SavingsGoalModal';
+import { ReceiptReviewModal } from '@/components/ReceiptReviewModal';
 import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem, SavingsGoal } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
@@ -80,6 +81,14 @@ export default function LifeCommandCenter() {
   const [financeChatHistory, setFinanceChatHistory] = useState<ChatMessage[]>([]);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
+  const [scannedReceiptData, setScannedReceiptData] = useState<{
+    vendor: string;
+    total: number;
+    date: string;
+    items: { description: string; amount: number; category: string }[];
+    confidence?: number;
+  } | null>(null);
+  const [isReceiptReviewOpen, setIsReceiptReviewOpen] = useState(false);
   const [todayEntry, setTodayEntry] = useState({ mood: 3, win: '', improve: '', thoughts: '' });
   const [editingEntryId, setEditingEntryId] = useState<string | number | null>(null);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
@@ -374,42 +383,21 @@ export default function LifeCommandCenter() {
           return;
         }
 
-        const amount = Number(data?.total || data?.items?.[0]?.amount || 0);
-        const description = String(data?.vendor || data?.items?.[0]?.description || 'Scanned Receipt');
-        const category = String(data?.items?.[0]?.category || 'Other');
-        const date = normalizeDate(data?.date);
-
-        // Always persist a record (draft if amount is 0)
-        const newTxn = {
-          id: Date.now(),
-          type: 'expense' as const,
-          amount: Number.isFinite(amount) ? Math.round(amount) : 0,
-          description: description + (Array.isArray(data?.items) && data.items.length > 1 ? ` (+${data.items.length - 1} items)` : ''),
-          category,
-          date,
+        // Instead of auto-saving, show the review modal
+        const scannedData = {
+          vendor: String(data?.vendor || data?.items?.[0]?.description || 'Scanned Receipt'),
+          total: Number(data?.total || data?.items?.[0]?.amount || 0),
+          date: normalizeDate(data?.date),
+          items: Array.isArray(data?.items) ? data.items.map((item: any) => ({
+            description: String(item.description || ''),
+            amount: Number(item.amount || 0),
+            category: String(item.category || 'Other'),
+          })) : [],
+          confidence: data?.confidence || 0.8,
         };
 
-        await setTransactions(prev => {
-          const next = [newTxn, ...prev];
-          next.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          return next;
-        });
-
-        if (newTxn.amount > 0) {
-          toast.success(`Receipt saved! ${formatCurrency(newTxn.amount, currency)} added to Recent Records`);
-        } else {
-          toast.info('Receipt saved as draft. Please edit the amount.');
-        }
-
-        // Reset the form
-        setNewTransaction({
-          type: 'income',
-          amount: '',
-          category: categories[0] || 'Food',
-          description: '',
-          date: new Date().toISOString().split('T')[0],
-        });
-
+        setScannedReceiptData(scannedData);
+        setIsReceiptReviewOpen(true);
         setIsScanningReceipt(false);
       };
       reader.readAsDataURL(file);
@@ -418,6 +406,38 @@ export default function LifeCommandCenter() {
       toast.error('Failed to scan receipt.');
       setIsScanningReceipt(false);
     }
+  };
+
+  const handleConfirmReceipt = async (data: {
+    type: 'expense';
+    amount: number;
+    description: string;
+    category: string;
+    date: string;
+  }) => {
+    const newTxn = {
+      id: Date.now(),
+      ...data,
+    };
+
+    await setTransactions(prev => {
+      const next = [newTxn, ...prev];
+      next.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return next;
+    });
+
+    toast.success(`Receipt saved! ${formatCurrency(newTxn.amount, currency)} added to Recent Records`);
+
+    // Reset the form
+    setNewTransaction({
+      type: 'income',
+      amount: '',
+      category: categories[0] || 'Food',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+    });
+
+    setScannedReceiptData(null);
   };
 
   const handleSaveJournal = async (e: React.FormEvent) => {
@@ -941,6 +961,19 @@ export default function LifeCommandCenter() {
             />
           </Modal>
         )}
+        
+        {/* Receipt Review Modal */}
+        <ReceiptReviewModal
+          isOpen={isReceiptReviewOpen}
+          onClose={() => {
+            setIsReceiptReviewOpen(false);
+            setScannedReceiptData(null);
+          }}
+          scannedData={scannedReceiptData}
+          categories={categories}
+          currency={currency}
+          onConfirm={handleConfirmReceipt}
+        />
         
         <SaveIndicator status={saveStatus} />
       </div>

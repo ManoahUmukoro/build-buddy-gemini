@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2, ExternalLink, Plus, Edit, Trash2, CreditCard, Package } from 'lucide-react';
+import { Save, Loader2, ExternalLink, Plus, Edit, Trash2, CreditCard, Package, Sparkles, Check, X } from 'lucide-react';
 
 interface PaymentProvider {
   enabled: boolean;
@@ -49,6 +49,55 @@ interface SubscriptionPlan {
   is_active: boolean;
 }
 
+interface PlanFeatures {
+  ai_chat: boolean;
+  receipt_scanning: boolean;
+  auto_categorize: boolean;
+  daily_digest: boolean;
+  weekly_digest: boolean;
+  max_systems: number;
+  max_transactions: number;
+  exports: boolean;
+  habit_suggestions: boolean;
+}
+
+const DEFAULT_PLAN_FEATURES: Record<string, PlanFeatures> = {
+  free: {
+    ai_chat: false,
+    receipt_scanning: false,
+    auto_categorize: false,
+    daily_digest: false,
+    weekly_digest: false,
+    max_systems: 3,
+    max_transactions: 50,
+    exports: false,
+    habit_suggestions: false,
+  },
+  pro: {
+    ai_chat: true,
+    receipt_scanning: true,
+    auto_categorize: true,
+    daily_digest: true,
+    weekly_digest: true,
+    max_systems: -1,
+    max_transactions: -1,
+    exports: true,
+    habit_suggestions: true,
+  },
+};
+
+const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
+  ai_chat: 'AI Chat Assistant',
+  receipt_scanning: 'Receipt Scanning',
+  auto_categorize: 'Auto-Categorize',
+  daily_digest: 'Daily Digest Emails',
+  weekly_digest: 'Weekly Digest Emails',
+  max_systems: 'Max Goals/Systems',
+  max_transactions: 'Max Transactions',
+  exports: 'Data Exports',
+  habit_suggestions: 'AI Habit Suggestions',
+};
+
 export default function AdminBilling() {
   const [providers, setProviders] = useState<PaymentProviders>({
     paystack: { enabled: false, public_key: '', secret_key: '' },
@@ -56,6 +105,7 @@ export default function AdminBilling() {
     stripe: { enabled: false, public_key: '', secret_key: '' },
   });
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [planFeatures, setPlanFeatures] = useState<Record<string, PlanFeatures>>(DEFAULT_PLAN_FEATURES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editPlan, setEditPlan] = useState<SubscriptionPlan | null>(null);
@@ -93,6 +143,19 @@ export default function AdminBilling() {
       if (plansData?.value) {
         // Value is already parsed by Supabase
         setPlans(plansData.value as unknown as SubscriptionPlan[]);
+      }
+
+      // Fetch plan features
+      const { data: featuresData, error: featuresError } = await supabase
+        .from('admin_settings')
+        .select('value')
+        .eq('key', 'plan_features')
+        .single();
+
+      if (featuresError && featuresError.code !== 'PGRST116') throw featuresError;
+
+      if (featuresData?.value) {
+        setPlanFeatures({ ...DEFAULT_PLAN_FEATURES, ...(featuresData.value as unknown as Record<string, PlanFeatures>) });
       }
       // No fallback - empty state will be shown if no plans exist
     } catch (err) {
@@ -167,6 +230,48 @@ export default function AdminBilling() {
     }
   }
 
+  async function savePlanFeatures() {
+    try {
+      setSaving(true);
+
+      const { data: existing } = await supabase
+        .from('admin_settings')
+        .select('id')
+        .eq('key', 'plan_features')
+        .single();
+
+      if (existing) {
+        const { error } = await supabase
+          .from('admin_settings')
+          .update({ value: JSON.parse(JSON.stringify(planFeatures)) })
+          .eq('key', 'plan_features');
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('admin_settings')
+          .insert([{ key: 'plan_features', value: JSON.parse(JSON.stringify(planFeatures)) }]);
+        if (error) throw error;
+      }
+
+      toast.success('Plan features saved');
+    } catch (err) {
+      console.error('Error saving plan features:', err);
+      toast.error('Failed to save plan features');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updatePlanFeature(plan: string, feature: keyof PlanFeatures, value: boolean | number) {
+    setPlanFeatures(prev => ({
+      ...prev,
+      [plan]: {
+        ...prev[plan],
+        [feature]: value,
+      },
+    }));
+  }
+
   function updateProvider(provider: keyof PaymentProviders, field: keyof PaymentProvider, value: any) {
     setProviders({
       ...providers,
@@ -219,7 +324,7 @@ export default function AdminBilling() {
         </div>
 
         <Tabs defaultValue="providers">
-          <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="providers" className="flex items-center gap-2 py-2">
               <CreditCard className="h-4 w-4" />
               <span className="hidden sm:inline">Payment</span>
@@ -229,6 +334,11 @@ export default function AdminBilling() {
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Plans</span>
               <span className="sm:hidden">Plans</span>
+            </TabsTrigger>
+            <TabsTrigger value="features" className="flex items-center gap-2 py-2">
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Features</span>
+              <span className="sm:hidden">Feat</span>
             </TabsTrigger>
           </TabsList>
 
@@ -611,6 +721,145 @@ export default function AdminBilling() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Plan Features Tab */}
+          <TabsContent value="features" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Configure which features are available for each plan. Changes affect all users immediately.
+              </p>
+              <Button onClick={savePlanFeatures} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Features
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Feature Access Matrix</CardTitle>
+                <CardDescription>Toggle features on/off for each plan tier</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[200px]">Feature</TableHead>
+                        <TableHead className="text-center">Free</TableHead>
+                        <TableHead className="text-center">Pro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(Object.keys(FEATURE_LABELS) as (keyof PlanFeatures)[]).map((feature) => (
+                        <TableRow key={feature}>
+                          <TableCell className="font-medium">{FEATURE_LABELS[feature]}</TableCell>
+                          <TableCell className="text-center">
+                            {typeof planFeatures.free[feature] === 'boolean' ? (
+                              <Switch
+                                checked={planFeatures.free[feature] as boolean}
+                                onCheckedChange={(checked) => updatePlanFeature('free', feature, checked)}
+                              />
+                            ) : (
+                              <Input
+                                type="number"
+                                value={planFeatures.free[feature] as number}
+                                onChange={(e) => updatePlanFeature('free', feature, parseInt(e.target.value) || 0)}
+                                className="w-20 mx-auto text-center"
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {typeof planFeatures.pro[feature] === 'boolean' ? (
+                              <Switch
+                                checked={planFeatures.pro[feature] as boolean}
+                                onCheckedChange={(checked) => updatePlanFeature('pro', feature, checked)}
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                <Input
+                                  type="number"
+                                  value={planFeatures.pro[feature] as number}
+                                  onChange={(e) => updatePlanFeature('pro', feature, parseInt(e.target.value) || 0)}
+                                  className="w-20 text-center"
+                                />
+                                <span className="text-xs text-muted-foreground">(-1 = ∞)</span>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4">
+                  {(Object.keys(FEATURE_LABELS) as (keyof PlanFeatures)[]).map((feature) => (
+                    <div key={feature} className="p-4 bg-muted/50 rounded-lg space-y-3">
+                      <div className="font-medium text-sm">{FEATURE_LABELS[feature]}</div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">Free</div>
+                          {typeof planFeatures.free[feature] === 'boolean' ? (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={planFeatures.free[feature] as boolean}
+                                onCheckedChange={(checked) => updatePlanFeature('free', feature, checked)}
+                              />
+                              {planFeatures.free[feature] ? (
+                                <Check className="h-4 w-4 text-success" />
+                              ) : (
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          ) : (
+                            <Input
+                              type="number"
+                              value={planFeatures.free[feature] as number}
+                              onChange={(e) => updatePlanFeature('free', feature, parseInt(e.target.value) || 0)}
+                              className="w-full"
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">Pro</div>
+                          {typeof planFeatures.pro[feature] === 'boolean' ? (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={planFeatures.pro[feature] as boolean}
+                                onCheckedChange={(checked) => updatePlanFeature('pro', feature, checked)}
+                              />
+                              {planFeatures.pro[feature] ? (
+                                <Check className="h-4 w-4 text-success" />
+                              ) : (
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          ) : (
+                            <Input
+                              type="number"
+                              value={planFeatures.pro[feature] as number}
+                              onChange={(e) => updatePlanFeature('pro', feature, parseInt(e.target.value) || 0)}
+                              className="w-full"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-muted-foreground">
+                  <strong>Note:</strong> For numeric limits, use -1 to indicate unlimited. Changes take effect immediately after saving.
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

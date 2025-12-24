@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/Modal';
-import { Receipt, Check, X, Edit2, AlertTriangle } from 'lucide-react';
+import { Receipt, Check, X, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 
 interface ReceiptItem {
@@ -44,14 +44,14 @@ export function ReceiptReviewModal({
   onConfirm,
 }: ReceiptReviewModalProps) {
   const [editedData, setEditedData] = useState({
-    amount: scannedData?.total || 0,
-    description: scannedData?.vendor || 'Scanned Receipt',
-    category: scannedData?.items?.[0]?.category || categories[0] || 'Other',
-    date: scannedData?.date || new Date().toISOString().split('T')[0],
+    amount: 0,
+    description: 'Scanned Receipt',
+    category: categories[0] || 'Other',
+    date: new Date().toISOString().split('T')[0],
   });
 
   // Update when scannedData changes
-  useState(() => {
+  useEffect(() => {
     if (scannedData) {
       setEditedData({
         amount: scannedData.total || 0,
@@ -60,7 +60,7 @@ export function ReceiptReviewModal({
         date: scannedData.date || new Date().toISOString().split('T')[0],
       });
     }
-  });
+  }, [scannedData, categories]);
 
   if (!scannedData) return null;
 
