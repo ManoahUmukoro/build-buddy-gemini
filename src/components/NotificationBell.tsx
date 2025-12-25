@@ -82,7 +82,7 @@ export function NotificationBell() {
       </button>
       
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 md:right-0 w-72 md:w-80 bg-card text-card-foreground rounded-xl shadow-xl p-3 md:p-4 z-[201] border border-border max-h-[350px] md:max-h-[400px] overflow-hidden flex flex-col" style={{ transform: 'translateX(min(0px, calc(100vw - 100% - 1rem)))' }}>
+        <div className="absolute top-full mt-2 right-0 w-72 md:w-80 bg-card text-card-foreground rounded-xl shadow-xl p-3 md:p-4 z-[201] border border-border max-h-[350px] md:max-h-[400px] overflow-hidden flex flex-col md:translate-x-0" style={{ right: '0px', maxWidth: 'calc(100vw - 1rem)' }}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="font-bold text-sm">Notifications</h4>
             <div className="flex gap-2">
