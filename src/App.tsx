@@ -7,7 +7,6 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { UserSettingsProvider } from "@/hooks/useUserSettings";
 import { AdminRoute } from "@/components/admin/AdminRoute";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
-import { TawkToWidget } from "@/components/TawkToWidget";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -33,7 +32,6 @@ const App = () => (
           <Sonner />
           <OfflineIndicator />
           <MaintenanceBanner />
-          <TawkToWidget />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />

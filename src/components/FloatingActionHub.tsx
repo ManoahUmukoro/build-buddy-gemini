@@ -205,43 +205,43 @@ export function FloatingActionHub({
       <div ref={menuRef} className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-50">
         {/* Menu Panel */}
         {isOpen && activePanel === 'menu' && (
-          <div className="absolute bottom-16 right-0 bg-card border border-border rounded-2xl shadow-xl p-2 min-w-[180px] animate-in">
+          <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-lg p-1.5 min-w-[160px] animate-in">
             <button
               onClick={handleSelectFocus}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-accent transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-accent transition-colors text-left"
             >
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Timer size={18} className="text-primary" />
+              <div className="p-1.5 bg-primary/10 rounded-md">
+                <Timer size={14} className="text-primary" />
               </div>
               <div>
-                <span className="font-medium text-sm text-card-foreground">Focus Timer</span>
-                <p className="text-xs text-muted-foreground">Start a focus session</p>
+                <span className="font-medium text-xs text-card-foreground">Focus Timer</span>
+                <p className="text-[10px] text-muted-foreground leading-tight">Start session</p>
               </div>
             </button>
             
             <button
               onClick={handleSelectAI}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-accent transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-accent transition-colors text-left"
             >
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Sparkles size={18} className="text-primary" />
+              <div className="p-1.5 bg-primary/10 rounded-md">
+                <Sparkles size={14} className="text-primary" />
               </div>
               <div>
-                <span className="font-medium text-sm text-card-foreground">AI Command</span>
-                <p className="text-xs text-muted-foreground">Quick actions via AI</p>
+                <span className="font-medium text-xs text-card-foreground">AI Command</span>
+                <p className="text-[10px] text-muted-foreground leading-tight">Quick actions</p>
               </div>
             </button>
             
             <button
               onClick={handleSelectSupport}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-accent transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-accent transition-colors text-left"
             >
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <MessageCircle size={18} className="text-primary" />
+              <div className="p-1.5 bg-primary/10 rounded-md">
+                <MessageCircle size={14} className="text-primary" />
               </div>
               <div>
-                <span className="font-medium text-sm text-card-foreground">Support</span>
-                <p className="text-xs text-muted-foreground">Chat with support</p>
+                <span className="font-medium text-xs text-card-foreground">Support</span>
+                <p className="text-[10px] text-muted-foreground leading-tight">Get help</p>
               </div>
             </button>
           </div>
@@ -250,13 +250,13 @@ export function FloatingActionHub({
         {/* Toggle Button */}
         <button
           onClick={handleToggle}
-          className={`p-4 rounded-full shadow-xl transition-all duration-300 ${
+          className={`p-3 rounded-full shadow-lg transition-all duration-300 ${
             isOpen 
               ? 'bg-muted text-muted-foreground rotate-45' 
-              : 'bg-gradient-to-r from-primary to-accent text-primary-foreground hover:scale-110'
+              : 'bg-gradient-to-r from-primary to-accent text-primary-foreground hover:scale-105'
           }`}
         >
-          {isOpen ? <X size={24} /> : <Menu size={24} />}
+          {isOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 

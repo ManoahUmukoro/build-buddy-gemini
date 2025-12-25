@@ -162,74 +162,15 @@ ${errorSummary}
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-20">
+    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 pb-20 px-3 md:px-0">
       {/* Announcements Ticker */}
       <AnnouncementTicker />
 
-      <div className="bg-primary text-primary-foreground p-8 rounded-2xl shadow-lg mb-8">
-        <h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
-          <HelpCircle size={32}/> LifeOS Help Center
+      <div className="bg-primary text-primary-foreground p-6 md:p-8 rounded-xl md:rounded-2xl shadow-lg">
+        <h2 className="text-xl md:text-3xl font-bold mb-2 flex items-center gap-2 md:gap-3">
+          <HelpCircle size={24} className="md:w-8 md:h-8"/> LifeOS Help Center
         </h2>
-        <p className="text-primary-foreground/80">Your complete guide to mastering LifeOS - your personal command center for productivity, finance, and growth.</p>
-      </div>
-
-      {/* Contact Support Section */}
-      <div className="bg-card p-6 rounded-xl border border-border shadow-soft">
-        <h3 className="font-bold text-lg text-card-foreground mb-4 flex items-center gap-2">
-          <MessageCircle size={20} className="text-primary"/> Contact Support
-        </h3>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Live Chat */}
-          <Button
-            variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4 hover:bg-primary/5 hover:border-primary/30"
-            onClick={handleOpenLiveChat}
-          >
-            <MessageCircle className="h-6 w-6 text-primary" />
-            <span className="font-medium">Live Chat</span>
-            <span className="text-xs text-muted-foreground">Talk to us now</span>
-          </Button>
-
-          {/* Email Support */}
-          <Button
-            variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4 hover:bg-primary/5 hover:border-primary/30"
-            onClick={handleEmailSupport}
-          >
-            <Mail className="h-6 w-6 text-primary" />
-            <span className="font-medium">Email Support</span>
-            <span className="text-xs text-muted-foreground">support@webnexer.com</span>
-          </Button>
-
-          {/* Copy Diagnostics */}
-          <Button
-            variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4 hover:bg-primary/5 hover:border-primary/30"
-            onClick={handleCopyDiagnostics}
-          >
-            {copied ? <Check className="h-6 w-6 text-success" /> : <Copy className="h-6 w-6 text-primary" />}
-            <span className="font-medium">{copied ? 'Copied!' : 'Copy Diagnostics'}</span>
-            <span className="text-xs text-muted-foreground">For faster support</span>
-          </Button>
-        </div>
-
-        {/* Error Center Quick Access */}
-        {errorCount > 0 && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <ErrorCenterPanel
-              trigger={
-                <Button variant="ghost" className="w-full justify-between text-sm text-muted-foreground hover:text-foreground">
-                  <span className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-warning" />
-                    {errorCount} recent error{errorCount !== 1 ? 's' : ''} logged
-                  </span>
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              }
-            />
-          </div>
-        )}
+        <p className="text-primary-foreground/80 text-sm md:text-base">Your complete guide to mastering LifeOS - your personal command center for productivity, finance, and growth.</p>
       </div>
 
       {/* Dynamic Help Content from Admin */}
@@ -238,13 +179,13 @@ ${errorSummary}
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : articles.length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {Object.entries(articlesByCategory).map(([category, categoryArticles]) => (
-            <div key={category} className="bg-card p-6 rounded-xl border border-border shadow-soft">
-              <h3 className="font-bold text-lg text-card-foreground mb-4 capitalize flex items-center gap-2">
-                <Info size={20} className="text-primary"/> {category}
+            <div key={category} className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-soft">
+              <h3 className="font-bold text-base md:text-lg text-card-foreground mb-3 capitalize flex items-center gap-2">
+                <Info size={18} className="text-primary"/> {category}
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {categoryArticles.map((article) => (
                   <FaqItem 
                     key={article.id}
@@ -258,31 +199,72 @@ ${errorSummary}
         </div>
       ) : (
         /* Empty state - no hardcoded content */
-        <div className="bg-card p-8 rounded-xl border border-border text-center">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="font-semibold text-lg text-foreground mb-2">No Help Articles Yet</h3>
-          <p className="text-muted-foreground text-sm">
+        <div className="bg-card p-6 md:p-8 rounded-xl border border-border text-center">
+          <FileText className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-3" />
+          <h3 className="font-semibold text-base md:text-lg text-foreground mb-2">No Help Articles Yet</h3>
+          <p className="text-muted-foreground text-xs md:text-sm">
             Help content will appear here once added by an administrator.
           </p>
         </div>
       )}
 
-      {/* Additional Help */}
-      <div className="bg-primary/10 p-6 rounded-xl border border-primary/20">
-        <h3 className="font-bold text-lg text-primary mb-3 flex items-center gap-2">
-          <MessageCircle size={20}/> Need More Help?
+      {/* Contact Support Section - at the bottom */}
+      <div className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-soft">
+        <h3 className="font-bold text-base md:text-lg text-card-foreground mb-4 flex items-center gap-2">
+          <MessageCircle size={18} className="text-primary"/> Contact Support
         </h3>
-        <p className="text-sm text-card-foreground mb-4">
-          If you can't find what you're looking for, use the contact options above or check back later for updated help articles.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={handleOpenLiveChat}>
-            <MessageCircle className="h-4 w-4 mr-1" /> Start Chat
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
+          {/* Live Chat */}
+          <Button
+            variant="outline"
+            className="flex flex-col items-center gap-1.5 h-auto py-3 md:py-4 hover:bg-primary/5 hover:border-primary/30"
+            onClick={handleOpenLiveChat}
+          >
+            <MessageCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+            <span className="font-medium text-xs md:text-sm">Live Chat</span>
+            <span className="text-[10px] md:text-xs text-muted-foreground">Talk to us now</span>
           </Button>
-          <Button size="sm" variant="outline" onClick={handleEmailSupport}>
-            <Mail className="h-4 w-4 mr-1" /> Email Us
+
+          {/* Email Support */}
+          <Button
+            variant="outline"
+            className="flex flex-col items-center gap-1.5 h-auto py-3 md:py-4 hover:bg-primary/5 hover:border-primary/30"
+            onClick={handleEmailSupport}
+          >
+            <Mail className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+            <span className="font-medium text-xs md:text-sm">Email Support</span>
+            <span className="text-[10px] md:text-xs text-muted-foreground">support@webnexer.com</span>
+          </Button>
+
+          {/* Copy Diagnostics */}
+          <Button
+            variant="outline"
+            className="flex flex-col items-center gap-1.5 h-auto py-3 md:py-4 hover:bg-primary/5 hover:border-primary/30"
+            onClick={handleCopyDiagnostics}
+          >
+            {copied ? <Check className="h-5 w-5 md:h-6 md:w-6 text-success" /> : <Copy className="h-5 w-5 md:h-6 md:w-6 text-primary" />}
+            <span className="font-medium text-xs md:text-sm">{copied ? 'Copied!' : 'Copy Diagnostics'}</span>
+            <span className="text-[10px] md:text-xs text-muted-foreground">For faster support</span>
           </Button>
         </div>
+
+        {/* Error Center Quick Access */}
+        {errorCount > 0 && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <ErrorCenterPanel
+              trigger={
+                <Button variant="ghost" className="w-full justify-between text-xs md:text-sm text-muted-foreground hover:text-foreground">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 md:h-4 md:w-4 text-warning" />
+                    {errorCount} recent error{errorCount !== 1 ? 's' : ''} logged
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
     </div>
   );
