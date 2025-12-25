@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
+import { logError } from './errorCenter';
 
-export type NetworkErrorType = 
+export type NetworkErrorType =
   | 'offline'
   | 'timeout'
   | 'server_error'
@@ -167,6 +168,9 @@ export function showNetworkError(
   onRetry?: () => void
 ) {
   const errorInfo = parseNetworkError(error);
+  
+  // Log to Error Center
+  logError(errorInfo.type, errorInfo.message, context, errorInfo.userAction);
   
   const prefix = context ? `${context}: ` : '';
   const fullMessage = errorInfo.userAction 
