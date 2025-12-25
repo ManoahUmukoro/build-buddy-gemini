@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, User, Sparkles } from 'lucide-react';
+import { Loader2, Mail, Lock, User } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -143,8 +144,8 @@ export default function Auth() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
-              <Mail className="text-primary" size={32} />
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" showText={false} />
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">Check Your Email</h1>
             <p className="text-muted-foreground text-sm">
@@ -218,11 +219,11 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
-            <Sparkles className="text-primary" size={32} />
+          <div className="flex justify-center mb-4">
+            <Logo size="xl" showText={false} />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Life Command Center</h1>
-          <p className="text-muted-foreground">Your personal productivity hub</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">LifeOS</h1>
+          <p className="text-muted-foreground">The Operating System for Intentional Living</p>
         </div>
 
         <div className="bg-card border border-border rounded-3xl p-8 shadow-card">
