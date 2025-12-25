@@ -413,7 +413,7 @@ export default function AdminSettings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tawkto-property">Tawk.to Property ID</Label>
+                  <Label htmlFor="tawkto-property">Tawk.to Property ID / Widget ID</Label>
                   <Input
                     id="tawkto-property"
                     value={settings.support_widget.propertyId}
@@ -421,11 +421,19 @@ export default function AdminSettings() {
                       ...settings, 
                       support_widget: { ...settings.support_widget, propertyId: e.target.value } 
                     })}
-                    placeholder="e.g., 1234567890abcdef/1a2b3c4d"
+                    placeholder="e.g., 694c8271477298197c6e1229/1i0abcdef"
                   />
-                  <p className="text-sm text-muted-foreground">
-                    Find this in Tawk.to Dashboard → Administration → Chat Widget → Direct Chat Link
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Format:</strong> propertyId/widgetId (e.g., 694c8271477298197c6e1229/1i0abcdef)
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <strong>How to find:</strong> Tawk.to Dashboard → Administration → Channels → Chat Widget → copy from the embed code URL
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Look for: https://embed.tawk.to/<span className="text-primary font-mono">propertyId</span>/<span className="text-primary font-mono">widgetId</span>
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
