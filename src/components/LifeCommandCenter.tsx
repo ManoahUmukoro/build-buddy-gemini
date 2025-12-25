@@ -473,11 +473,23 @@ export default function LifeCommandCenter() {
     setIsSavingJournal(false);
   };
 
+  const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+
   // Modal Submit Handler
   const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isModalSubmitting) return;
+    
     const isDeleteAction = modalConfig.type?.startsWith('delete');
     if (!inputValue.trim() && !isDeleteAction) return;
+    
+    // Validate goals/systems require both fields
+    if (modalConfig.type === 'addSystem' && (!inputValue.trim() || !inputWhy.trim())) {
+      toast.error('Goal name and "Your Why" are both required');
+      return;
+    }
+
+    setIsModalSubmitting(true);
 
     switch (modalConfig.type) {
       case 'addTask':
@@ -594,6 +606,7 @@ export default function LifeCommandCenter() {
         await setSavingsGoals(prev => prev.filter(g => String(g.id) !== String(modalConfig.data)));
         break;
     }
+    setIsModalSubmitting(false);
     closeModal();
   };
 
@@ -672,7 +685,7 @@ export default function LifeCommandCenter() {
       deleteSubscription: "Delete Subscription",
       editSystem: "Edit Goal",
       editHabit: "Edit Habit",
-      addSubscription: "Add Fixed Cost",
+      addSubscription: "Add Subscription",
       editSubscription: "Edit Fixed Cost",
       addTask: "Add Task",
       editTask: "Edit Task",

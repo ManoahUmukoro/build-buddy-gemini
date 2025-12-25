@@ -17,6 +17,7 @@ interface Task {
 interface FloatingFocusTimerProps {
   todayTasks?: Task[];
   onSessionComplete?: (duration: number, taskLabel: string, reflection?: string) => void;
+  onClose?: () => void;
 }
 
 const DURATION_OPTIONS = [
@@ -28,7 +29,7 @@ const DURATION_OPTIONS = [
   { value: '60', label: '60 min' },
 ];
 
-export function FloatingFocusTimer({ todayTasks = [], onSessionComplete }: FloatingFocusTimerProps) {
+export function FloatingFocusTimer({ todayTasks = [], onSessionComplete, onClose }: FloatingFocusTimerProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);

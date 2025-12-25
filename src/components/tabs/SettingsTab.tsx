@@ -449,21 +449,6 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 <p className="text-xs text-muted-foreground">Currency updates throughout Finance</p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Week Starts On</Label>
-                <Select 
-                  value={preferences.week_start} 
-                  onValueChange={(v) => updatePreferences({ week_start: v as 'sunday' | 'monday' })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sunday">Sunday</SelectItem>
-                    <SelectItem value="monday">Monday</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
