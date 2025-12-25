@@ -199,24 +199,24 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
   const displayName = profile?.display_name;
   
   return (
-    <div className="md:hidden bg-sidebar text-sidebar-foreground p-4 flex items-center justify-between sticky top-0 z-20 shadow-soft">
+    <div className="md:hidden bg-sidebar text-sidebar-foreground p-3 flex items-center justify-between sticky top-0 z-20 shadow-soft">
       <div className="flex flex-col">
-        <div className="flex items-center gap-2 font-bold text-lg">
-          <Activity className="text-primary" size={18} />
+        <div className="flex items-center gap-1.5 font-bold text-base">
+          <Activity className="text-primary" size={16} />
           LifeOS
         </div>
         {displayName && (
-          <p className="text-xs text-primary/80 mt-0.5">{greeting}, {displayName}!</p>
+          <p className="text-[10px] text-primary/80 mt-0.5">{greeting}, {displayName}!</p>
         )}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <ThemeToggle />
         <NotificationBell />
         <button 
           onClick={onProfileClick}
-          className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+          className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
         >
-          <User size={18} className="text-sidebar-foreground/60" />
+          <User size={16} className="text-sidebar-foreground/60" />
         </button>
       </div>
     </div>
@@ -237,20 +237,20 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   );
   
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around p-2 pb-safe z-40">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around p-1.5 pb-safe z-40">
       {mobileNavItems.map(item => (
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
-          className={`flex flex-col items-center p-1.5 rounded-xl transition-all ${
+          className={`flex flex-col items-center p-1 rounded-lg transition-all ${
             activeTab === item.id 
               ? 'text-primary bg-primary/10' 
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={18} />
-          <span className="text-[9px] font-semibold mt-0.5 truncate max-w-[50px]">
-            {item.id === 'systems' ? 'Goals' : item.label.split(' ')[0]}
+          <item.icon size={16} />
+          <span className="text-[8px] font-semibold mt-0.5 truncate max-w-[42px]">
+            {item.id === 'systems' ? 'Goals' : item.id === 'dashboard' ? 'Plan' : item.label.split(' ')[0]}
           </span>
         </button>
       ))}
