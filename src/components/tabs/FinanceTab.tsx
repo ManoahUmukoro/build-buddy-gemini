@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   TrendingUp, DollarSign, Wallet, Plus, Edit2, Trash2, X, 
-  Sparkles, Loader2, MessageCircle, RefreshCw, Wand2, CreditCard, PiggyBank, Receipt,
-  ArrowUpCircle, ArrowDownCircle, History, CalendarDays
+  Sparkles, Loader2, MessageCircle, Wand2, CreditCard, PiggyBank, Receipt,
+  History, MoreVertical, Filter, ChevronDown
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction, Subscription, Budget, ChatMessage, SavingsGoal } from '@/lib/types';
@@ -11,14 +11,20 @@ import { CHART_COLORS } from '@/lib/constants';
 import { Modal } from '@/components/Modal';
 import { ChatInterface } from '@/components/ChatInterface';
 import { SavingsEntriesHistory } from '@/components/SavingsEntriesHistory';
-import { useSavingsEntries, SavingsEntry } from '@/hooks/useSavingsEntries';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { FeatureGate } from '@/components/FeatureGate';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Link } from 'react-router-dom';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface FinanceTabProps {
   transactions: Transaction[];
@@ -68,6 +74,15 @@ interface FinanceTabProps {
 
 type FinanceSubTab = 'overview' | 'budgets' | 'savings';
 
+// Helper to format date headers
+function formatDateHeader(dateStr: string): string {
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (dateStr === today) return 'Today';
+  if (dateStr === yesterday) return 'Yesterday';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function FinanceTab({
   transactions,
   setTransactions,
@@ -103,9 +118,67 @@ export function FinanceTab({
   const [financeTab, setFinanceTab] = useState<FinanceSubTab>('overview');
   const [financeMonthFilter, setFinanceMonthFilter] = useState(new Date().toISOString().slice(0, 7));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { canScanReceipts, canAutoCategorize, canUseAI, isPro } = useEntitlements();
+  const { canScanReceipts, canAutoCategorize } = useEntitlements();
 
-  const filteredTransactions = transactions.filter(t => t.date.startsWith(financeMonthFilter));
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterAmountMin, setFilterAmountMin] = useState<string>('');
+  const [filterAmountMax, setFilterAmountMax] = useState<string>('');
+
+  // Apply all filters
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter(t => t.date.startsWith(financeMonthFilter))
+      .filter(t => filterType === 'all' || t.type === filterType)
+      .filter(t => filterCategory === 'all' || t.category === filterCategory)
+      .filter(t => {
+        const min = parseFloat(filterAmountMin) || 0;
+        const max = parseFloat(filterAmountMax) || Infinity;
+        return t.amount >= min && t.amount <= max;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, financeMonthFilter, filterType, filterCategory, filterAmountMin, filterAmountMax]);
+
+  // Group transactions by date
+  const groupedTransactions = useMemo(() => {
+    const groups: Record<string, Transaction[]> = {};
+    filteredTransactions.forEach(t => {
+      if (!groups[t.date]) groups[t.date] = [];
+      groups[t.date].push(t);
+    });
+    return groups;
+  }, [filteredTransactions]);
+
+  // Sorted date keys (newest first)
+  const sortedDates = useMemo(() => {
+    return Object.keys(groupedTransactions).sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+  }, [groupedTransactions]);
+
+  // Get unique categories from transactions
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set(transactions.map(t => t.category));
+    return Array.from(cats).filter(Boolean);
+  }, [transactions]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterType !== 'all') count++;
+    if (filterCategory !== 'all') count++;
+    if (filterAmountMin) count++;
+    if (filterAmountMax) count++;
+    return count;
+  }, [filterType, filterCategory, filterAmountMin, filterAmountMax]);
+
+  const clearFilters = () => {
+    setFilterType('all');
+    setFilterCategory('all');
+    setFilterAmountMin('');
+    setFilterAmountMax('');
+  };
 
   const getBudgetProgress = (cat: string) => {
     const limit = budgets[cat] || 0;
@@ -172,18 +245,6 @@ export function FinanceTab({
       date: new Date().toISOString().split('T')[0]
     });
     setIsSubmitting(false);
-  };
-
-  const handleSavingsUpdate = (goalId: string | number, amount: number, operation: 'deposit' | 'withdraw') => {
-    setSavingsGoals(prev => prev.map(goal => {
-      if (String(goal.id) === String(goalId)) {
-        const current = goal.current || 0;
-        const newBalance = operation === 'deposit' ? current + amount : Math.max(0, current - amount);
-        return { ...goal, current: newBalance };
-      }
-      return goal;
-    }));
-    toast.success(operation === 'deposit' ? "Deposit successful!" : "Withdrawal successful!");
   };
 
   return (
@@ -363,58 +424,161 @@ export function FinanceTab({
                 </form>
               </div>
 
-              {/* Recent Records with Month Filter */}
+              {/* Recent Records with Filters */}
               <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
-                <div className="flex justify-between items-center mb-3 md:mb-4">
+                <div className="flex justify-between items-center mb-3 md:mb-4 gap-2 flex-wrap">
                   <h3 className="font-bold text-card-foreground text-sm md:text-base">Recent Records</h3>
-                  <input
-                    type="month"
-                    value={financeMonthFilter}
-                    onChange={(e) => setFinanceMonthFilter(e.target.value)}
-                    className="text-xs bg-muted border border-border rounded-lg p-2"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="month"
+                      value={financeMonthFilter}
+                      onChange={(e) => setFinanceMonthFilter(e.target.value)}
+                      className="text-xs bg-muted border border-border rounded-lg p-2"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFilters(!showFilters)}
+                      className={`text-xs ${activeFiltersCount > 0 ? 'border-primary text-primary' : ''}`}
+                    >
+                      <Filter size={14} className="mr-1" />
+                      {activeFiltersCount > 0 ? `Filters (${activeFiltersCount})` : 'Filter'}
+                      <ChevronDown size={12} className={`ml-1 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {filteredTransactions.length === 0 ? (
+
+                {/* Filter Panel */}
+                <Collapsible open={showFilters} onOpenChange={setShowFilters}>
+                  <CollapsibleContent className="mb-4">
+                    <div className="bg-muted/50 p-3 rounded-lg border border-border space-y-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {/* Type Filter */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+                          <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value as 'all' | 'income' | 'expense')}
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                          >
+                            <option value="all">All</option>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                          </select>
+                        </div>
+
+                        {/* Category Filter */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Category</label>
+                          <select
+                            value={filterCategory}
+                            onChange={(e) => setFilterCategory(e.target.value)}
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                          >
+                            <option value="all">All Categories</option>
+                            {uniqueCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Min Amount */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Min Amount</label>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={filterAmountMin}
+                            onChange={(e) => setFilterAmountMin(e.target.value)}
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                          />
+                        </div>
+
+                        {/* Max Amount */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Max Amount</label>
+                          <input
+                            type="number"
+                            placeholder="∞"
+                            value={filterAmountMax}
+                            onChange={(e) => setFilterAmountMax(e.target.value)}
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                          />
+                        </div>
+                      </div>
+
+                      {activeFiltersCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearFilters}
+                          className="text-xs text-muted-foreground hover:text-destructive"
+                        >
+                          <X size={12} className="mr-1" /> Clear Filters
+                        </Button>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                {/* Transaction List Grouped by Date */}
+                <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                  {sortedDates.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground text-sm bg-muted rounded-lg border border-dashed border-border">
                       No transactions found for this month.
                     </div>
-                  ) : filteredTransactions.map((t, idx) => (
-                    <div key={`${t.id}-${idx}`} className="flex justify-between items-start md:items-center p-2.5 md:p-3 bg-muted rounded-lg text-sm border border-border/50 gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-card-foreground text-xs md:text-sm truncate">{t.description}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(t.date).toLocaleDateString()} • {t.category || 'Income'}
+                  ) : (
+                    sortedDates.map(date => (
+                      <div key={date}>
+                        {/* Date Header */}
+                        <div className="sticky top-0 bg-card py-1.5 z-10">
+                          <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded">
+                            {formatDateHeader(date)}
+                          </span>
+                        </div>
+                        
+                        {/* Transactions for this date */}
+                        <div className="space-y-2 mt-2">
+                          {groupedTransactions[date].map((t, idx) => (
+                            <div key={`${t.id}-${idx}`} className="flex justify-between items-start md:items-center p-2.5 md:p-3 bg-muted rounded-lg text-sm border border-border/50 gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-card-foreground text-xs md:text-sm truncate">{t.description}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {t.category || 'Income'}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                                <span className={`font-bold text-xs md:text-sm ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, currency)}
+                                </span>
+                                <button 
+                                  onClick={() => {
+                                    setNewTransaction({
+                                      type: t.type,
+                                      amount: String(t.amount),
+                                      category: t.category,
+                                      description: t.description,
+                                      date: t.date
+                                    });
+                                    setEditingTransactionId(t.id);
+                                  }} 
+                                  className="text-muted-foreground/50 hover:text-primary p-1"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => onOpenModal('deleteTransaction', t.id)} 
+                                  className="text-muted-foreground/50 hover:text-destructive p-1"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                        <span className={`font-bold text-xs md:text-sm ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
-                          {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, currency)}
-                        </span>
-                        <button 
-                          onClick={() => {
-                            setNewTransaction({
-                              type: t.type,
-                              amount: String(t.amount),
-                              category: t.category,
-                              description: t.description,
-                              date: t.date
-                            });
-                            setEditingTransactionId(t.id);
-                          }} 
-                          className="text-muted-foreground/50 hover:text-primary p-1"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => onOpenModal('deleteTransaction', t.id)} 
-                          className="text-muted-foreground/50 hover:text-destructive p-1"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -515,7 +679,7 @@ export function FinanceTab({
       {/* Budgets Tab */}
       {financeTab === 'budgets' && (
         <div className="max-w-3xl mx-auto animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-card p-8 rounded-xl shadow-soft border border-border">
+          <div className="bg-card p-4 md:p-8 rounded-xl shadow-soft border border-border">
             <div className="flex justify-between items-center mb-6 border-b border-border pb-4 gap-2">
               <div>
                 <h3 className="font-bold text-card-foreground text-lg md:text-xl flex items-center gap-2">
@@ -530,7 +694,7 @@ export function FinanceTab({
                 <Sparkles size={16} /> Auto-Allocate
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {categories.filter(c => c !== 'Income').map(cat => {
                 const progress = getBudgetProgress(cat);
                 if (!progress && !budgets[cat]) return (
@@ -546,13 +710,13 @@ export function FinanceTab({
                 return (
                   <div key={cat} className="group bg-muted p-4 rounded-xl border border-border">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="font-bold text-card-foreground flex items-center gap-2 text-lg">
+                      <span className="font-bold text-card-foreground flex items-center gap-2 text-base md:text-lg">
                         {cat} 
                         <button onClick={() => onOpenModal('setBudget', cat)} className="text-muted-foreground hover:text-primary">
                           <Edit2 size={14}/>
                         </button>
                       </span>
-                      <span className={`text-sm font-bold ${progress.spent > progress.limit ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      <span className={`text-xs md:text-sm font-bold ${progress.spent > progress.limit ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {formatCurrency(progress.spent, currency)} 
                         <span className="text-muted-foreground font-normal"> / {formatCurrency(progress.limit, currency)}</span>
                       </span>
@@ -577,7 +741,7 @@ export function FinanceTab({
       {/* Savings Tab */}
       {financeTab === 'savings' && (
         <div className="max-w-3xl mx-auto animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-card p-8 rounded-xl shadow-soft border border-border">
+          <div className="bg-card p-4 md:p-8 rounded-xl shadow-soft border border-border">
             <div className="flex justify-between items-center mb-6 border-b border-border pb-4 gap-2">
               <div>
                 <h3 className="font-bold text-card-foreground text-lg md:text-xl flex items-center gap-2">
@@ -592,7 +756,7 @@ export function FinanceTab({
                 <Plus size={16}/> New Goal
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {savingsGoals.length === 0 && (
                 <div className="text-center py-12 flex flex-col items-center">
                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
@@ -605,50 +769,68 @@ export function FinanceTab({
               {savingsGoals.map(goal => {
                 const pct = Math.min((goal.current / goal.target) * 100, 100);
                 return (
-                  <div key={goal.id} className="bg-primary/5 p-6 rounded-xl border border-primary/20 relative group overflow-hidden">
+                  <div key={goal.id} className="bg-primary/5 p-4 md:p-6 rounded-xl border border-primary/20 relative group overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-xl text-card-foreground">{goal.name}</h4>
+                    <div className="flex justify-between items-start mb-3 md:mb-4 relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-lg md:text-xl text-card-foreground truncate">{goal.name}</h4>
                       </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <SavingsEntriesHistory
-                          goalId={String(goal.id)}
-                          goalName={goal.name}
-                          currency={currency}
-                        />
-                        <button 
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button 
                           onClick={() => onOpenModal('editSavingsDeposit', { id: goal.id, current: goal.current, name: goal.name })} 
-                          className="bg-card border border-primary/20 text-primary px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-primary/10 transition-colors"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs md:text-sm border-primary/20 text-primary hover:bg-primary/10"
                         >
                           Update Balance
-                        </button>
-                        <button 
-                          onClick={() => onOpenModal('deleteSavings', goal.id)} 
-                          className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <Trash2 size={18}/>
-                        </button>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical size={16} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-card border border-border">
+                            <DropdownMenuItem asChild>
+                              <SavingsEntriesHistory
+                                goalId={String(goal.id)}
+                                goalName={goal.name}
+                                currency={currency}
+                                trigger={
+                                  <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm">
+                                    <History size={14} /> View History
+                                  </button>
+                                }
+                              />
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => onOpenModal('deleteSavings', goal.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 size={14} className="mr-2" /> Delete Goal
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="bg-card p-3 rounded-lg border border-border">
-                        <p className="text-xs text-muted-foreground mb-1">Target Amount</p>
-                        <p className="text-lg font-bold text-card-foreground">{formatCurrency(goal.target, currency)}</p>
+                    <div className="grid grid-cols-2 gap-2 md:gap-4 mb-3 md:mb-4">
+                      <div className="bg-card p-2 md:p-3 rounded-lg border border-border">
+                        <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Target Amount</p>
+                        <p className="text-sm md:text-lg font-bold text-card-foreground">{formatCurrency(goal.target, currency)}</p>
                       </div>
-                      <div className="bg-card p-3 rounded-lg border border-border">
-                        <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-                        <p className="text-lg font-bold text-success">{formatCurrency(goal.current, currency)}</p>
+                      <div className="bg-card p-2 md:p-3 rounded-lg border border-border">
+                        <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Current Balance</p>
+                        <p className="text-sm md:text-lg font-bold text-success">{formatCurrency(goal.current, currency)}</p>
                       </div>
                     </div>
                     
                     <div className="relative">
-                      <div className="flex justify-between text-sm font-bold text-card-foreground mb-2">
+                      <div className="flex justify-between text-xs md:text-sm font-bold text-card-foreground mb-1 md:mb-2">
                         <span>Progress</span>
                         <span>{pct.toFixed(0)}%</span>
                       </div>
-                      <div className="h-4 bg-card rounded-full overflow-hidden border border-primary/10 shadow-inner">
+                      <div className="h-3 md:h-4 bg-card rounded-full overflow-hidden border border-primary/10 shadow-inner">
                         <div 
                           className="h-full bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-1000 ease-out" 
                           style={{ width: `${pct}%` }}
