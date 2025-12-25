@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, LucideIcon } from 'lucide-react';
+import { Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TabId, AlertItem } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -8,7 +8,7 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminSettings, ModulesConfig } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
-
+import { Logo } from '@/components/Logo';
 interface SidebarProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
@@ -125,11 +125,8 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground p-6 flex-col shrink-0 min-h-screen h-full sticky top-0">
       <div className="mb-10">
-        <h1 className="text-2xl font-bold tracking-tighter flex items-center gap-2">
-          <Activity className="text-primary" />
-          LifeOS
-        </h1>
-        <p className="text-sidebar-foreground/60 text-xs mt-1 ml-8">Expert Edition v8.1</p>
+        <Logo size="md" />
+        <p className="text-sidebar-foreground/60 text-xs mt-1 ml-9">Expert Edition v8.1</p>
         {displayName && (
           <p className="text-sm text-primary mt-3 font-medium">{greeting}, {displayName}!</p>
         )}
@@ -201,12 +198,9 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
   return (
     <div className="md:hidden bg-sidebar text-sidebar-foreground p-3 flex items-center justify-between sticky top-0 z-20 shadow-soft">
       <div className="flex flex-col">
-        <div className="flex items-center gap-1.5 font-bold text-base">
-          <Activity className="text-primary" size={16} />
-          LifeOS
-        </div>
+        <Logo size="sm" />
         {displayName && (
-          <p className="text-[10px] text-primary/80 mt-0.5">{greeting}, {displayName}!</p>
+          <p className="text-[10px] text-primary/80 mt-0.5 ml-6">{greeting}, {displayName}!</p>
         )}
       </div>
       <div className="flex items-center gap-0.5">
