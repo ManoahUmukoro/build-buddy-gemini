@@ -217,47 +217,4 @@
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
   }
-
-  /* Landing page reveal animation */
-  .animate-reveal {
-    animation: reveal 0.6s ease-out forwards;
-    opacity: 0;
-  }
-
-  .animate-reveal-delay-1 {
-    animation-delay: 0.1s;
-  }
-
-  .animate-reveal-delay-2 {
-    animation-delay: 0.2s;
-  }
-
-  .animate-reveal-delay-3 {
-    animation-delay: 0.3s;
-  }
-
-  @keyframes reveal {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* Bento card hover effect */
-  .bento-card {
-    @apply transition-all duration-300 ease-out;
-  }
-
-  .bento-card:hover {
-    @apply scale-[1.02] shadow-lg;
-  }
-
-  /* Dotted pipeline line */
-  .pipeline-line {
-    border-top: 2px dashed hsl(var(--border));
-  }
 }
