@@ -5,6 +5,7 @@ import { Tasks, System, Transaction, JournalEntry, Budget, Subscription, Savings
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { toast } from 'sonner';
 import { SaveStatus } from '@/components/SaveIndicator';
+import { showNetworkError, parseNetworkError } from '@/lib/networkErrorHandler';
 
 // Helper to compare IDs regardless of type
 const isSameId = (id1: string | number, id2: string | number): boolean => {
@@ -205,7 +206,16 @@ export function useSupabaseData() {
 
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load data');
+      const errorInfo = parseNetworkError(error);
+      
+      if (errorInfo.type === 'offline') {
+        toast.error('You appear to be offline', {
+          description: 'Data will sync when you reconnect.',
+          duration: 5000,
+        });
+      } else {
+        showNetworkError(error, 'Loading data');
+      }
     } finally {
       setLoading(false);
     }

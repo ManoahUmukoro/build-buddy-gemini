@@ -81,14 +81,19 @@ export function useEntitlements(): Entitlements {
       ]);
 
       if (userPlanRes.error) {
-        console.error('Error fetching user plan:', userPlanRes.error);
+        // Only log if not a network error (reduces console noise on mobile)
+        if (!userPlanRes.error.message?.includes('Failed to fetch')) {
+          console.error('Error fetching user plan:', userPlanRes.error);
+        }
       } else if (userPlanRes.data) {
         setUserPlan(userPlanRes.data.plan || 'free');
         setPlanStatus(userPlanRes.data.status || 'active');
       }
 
       if (settingsRes.error) {
-        console.error('Error fetching admin settings:', settingsRes.error);
+        if (!settingsRes.error.message?.includes('Failed to fetch')) {
+          console.error('Error fetching admin settings:', settingsRes.error);
+        }
       } else if (settingsRes.data) {
         settingsRes.data.forEach(setting => {
           const value = typeof setting.value === 'string' 
@@ -104,8 +109,12 @@ export function useEntitlements(): Entitlements {
           }
         });
       }
-    } catch (err) {
-      console.error('Error fetching entitlements:', err);
+    } catch (err: unknown) {
+      // Silently handle network errors (common on mobile)
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('Failed to fetch')) {
+        console.error('Error fetching entitlements:', err);
+      }
     } finally {
       setLoading(false);
     }
