@@ -31,7 +31,8 @@ const DURATION_OPTIONS = [
 
 export function FloatingFocusTimer({ todayTasks = [], onSessionComplete, onClose }: FloatingFocusTimerProps) {
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  // If onClose is provided, we're in "controlled" mode from FloatingActionHub - always show
+  const [isOpen, setIsOpen] = useState(!!onClose);
   const [isMinimized, setIsMinimized] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState('25');
   const [selectedTask, setSelectedTask] = useState<string>('');
@@ -175,7 +176,14 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete, onClose
 
   const progress = ((sessionDuration - timeRemaining) / sessionDuration) * 100;
 
-  if (!isOpen) {
+  const handleClose = () => {
+    setIsOpen(false);
+    resetTimer();
+    onClose?.();
+  };
+
+  // Standalone mode - render floating button when not open
+  if (!isOpen && !onClose) {
     return (
       <>
         <button
@@ -246,7 +254,7 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete, onClose
                 <Minimize2 className="h-3 w-3" />
               </Button>
             )}
-            <Button size="icon" variant="ghost" onClick={() => { setIsOpen(false); resetTimer(); }} className="h-7 w-7">
+            <Button size="icon" variant="ghost" onClick={handleClose} className="h-7 w-7">
               <X className="h-3 w-3" />
             </Button>
           </div>
