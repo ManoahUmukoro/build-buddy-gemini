@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { 
   TrendingUp, DollarSign, Wallet, Plus, Edit2, Trash2, X, 
   Sparkles, Loader2, MessageCircle, RefreshCw, Wand2, CreditCard, PiggyBank, Receipt,
-  ArrowUpCircle, ArrowDownCircle, History, CalendarDays, Crown
+  ArrowUpCircle, ArrowDownCircle, History, CalendarDays
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction, Subscription, Budget, ChatMessage, SavingsGoal } from '@/lib/types';
@@ -253,19 +253,18 @@ export function FinanceTab({
                   <h3 className="font-bold text-card-foreground text-sm md:text-base">
                     {editingTransactionId ? 'Edit Record' : 'Add Transaction'}
                   </h3>
-                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${
-                    canScanReceipts ? 'text-muted-foreground hover:text-primary' : 'text-muted-foreground/50'
-                  }`}>
-                    <Receipt size={14} />
-                    {isScanningReceipt ? <Loader2 className="animate-spin" size={14} /> : 'Scan Receipt'}
-                    {canScanReceipts ? (
+                  {canScanReceipts ? (
+                    <label className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-primary">
+                      <Receipt size={14} />
+                      {isScanningReceipt ? <Loader2 className="animate-spin" size={14} /> : 'Scan Receipt'}
                       <input type="file" accept="image/*" onChange={onReceiptScan} className="hidden" />
-                    ) : (
-                      <Link to="/pricing" className="text-xs text-primary ml-1">
-                        <Crown size={12} className="inline text-yellow-500" />
-                      </Link>
-                    )}
-                  </label>
+                    </label>
+                  ) : (
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground/50 cursor-not-allowed" title="Pro feature">
+                      <Receipt size={14} />
+                      Scan Receipt
+                    </span>
+                  )}
                 </div>
                 <form onSubmit={handleTransactionSubmit} className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-4">
                   <div className="col-span-1 md:col-span-4">
@@ -325,19 +324,16 @@ export function FinanceTab({
                           className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none pr-10" 
                           required 
                         />
-                        <button 
-                          type="button" 
-                          onClick={canAutoCategorize ? onAutoCategorize : undefined} 
-                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 ${
-                            canAutoCategorize ? 'text-primary/60 hover:text-primary' : 'text-muted-foreground/30'
-                          }`}
-                          title={canAutoCategorize ? "Auto-Categorize" : "Pro feature"}
-                          disabled={!canAutoCategorize}
-                        >
-                          {isCategorizing ? <Loader2 className="animate-spin" size={16} /> : (
-                            canAutoCategorize ? <Wand2 size={16} /> : <Crown size={16} className="text-yellow-500/50" />
-                          )}
-                        </button>
+                        {canAutoCategorize && (
+                          <button 
+                            type="button" 
+                            onClick={onAutoCategorize} 
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary/60 hover:text-primary"
+                            title="Auto-Categorize"
+                          >
+                            {isCategorizing ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                          </button>
+                        )}
                       </div>
                     </>
                   ) : (

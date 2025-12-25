@@ -170,7 +170,7 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+            <NotificationBell />
           </div>
         </div>
         <a 
@@ -211,7 +211,7 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
       </div>
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        {onClearAlerts && <NotificationBell alerts={alerts} onClear={onClearAlerts} />}
+        <NotificationBell />
         <button 
           onClick={onProfileClick}
           className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
