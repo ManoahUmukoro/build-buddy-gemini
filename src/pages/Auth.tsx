@@ -71,7 +71,16 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
-      toast.error(error.message || 'An error occurred');
+      const message = error.message?.toLowerCase() || '';
+      if (message.includes('invalid login') || message.includes('invalid credentials')) {
+        toast.error('Invalid email or password. Please try again.');
+      } else if (message.includes('network') || message.includes('fetch')) {
+        toast.error('Connection issue. Please check your internet and try again.');
+      } else if (message.includes('rate limit')) {
+        toast.error('Too many attempts. Please wait a moment and try again.');
+      } else {
+        toast.error(error.message || 'An error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
