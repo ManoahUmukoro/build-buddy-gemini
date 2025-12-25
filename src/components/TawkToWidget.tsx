@@ -92,16 +92,16 @@ export function TawkToWidget() {
 
     // Validate and extract widget ID from property ID
     // Tawk.to property IDs should be alphanumeric with format: propertyId/widgetId
-    const TAWKTO_PROPERTY_REGEX = /^[a-f0-9]{24}$/i;
+    // Property ID is 24 hex characters, widget ID starts with "1" followed by alphanumeric
+    const parts = config.propertyId.trim().split('/');
+    const propertyId = parts[0]?.trim();
+    // Default widget ID is typically "1i..." or "default" format for default widget
+    const widgetId = parts[1]?.trim() || 'default';
     
-    const parts = config.propertyId.split('/');
-    const propertyId = parts[0];
-    // Default widget ID is typically "1i..." format for default widget
-    const widgetId = parts[1] || 'default';
-    
-    // Validate property ID format
-    if (!TAWKTO_PROPERTY_REGEX.test(propertyId)) {
-      console.error('Invalid Tawk.to property ID format:', propertyId);
+    // More flexible validation - just check if we have a reasonable property ID
+    if (!propertyId || propertyId.length < 20) {
+      console.error('Invalid Tawk.to property ID format. Expected 24 character hex string, got:', propertyId);
+      console.info('Hint: Get your Property ID from Tawk.to Dashboard → Administration → Channels → Chat Widget');
       return;
     }
 
