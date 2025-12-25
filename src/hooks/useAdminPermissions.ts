@@ -41,13 +41,19 @@ export function useAdminPermissions(): AdminPermissions {
           .maybeSingle();
 
         if (error) {
-          console.error('Error fetching user role:', error);
+          // Silently handle network errors (common on mobile)
+          if (!error.message?.includes('Failed to fetch')) {
+            console.error('Error fetching user role:', error);
+          }
           setRole(null);
         } else {
           setRole((data?.role as AppRole) || null);
         }
-      } catch (err) {
-        console.error('Error fetching user role:', err);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!message.includes('Failed to fetch')) {
+          console.error('Error fetching user role:', err);
+        }
         setRole(null);
       } finally {
         setLoading(false);

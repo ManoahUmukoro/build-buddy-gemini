@@ -24,6 +24,7 @@ import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { formatCurrency, getCurrentDayIndex } from '@/lib/formatters';
+import { extractEdgeFunctionError, showNetworkError } from '@/lib/networkErrorHandler';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -377,7 +378,20 @@ export default function LifeCommandCenter() {
 
         if (error) {
           console.error('Receipt scan error:', error);
-          toast.error(error.message || 'Failed to scan receipt. Please try again.');
+          // Extract detailed error message from edge function response
+          const errorMessage = await extractEdgeFunctionError(error);
+          
+          // Show user-friendly message based on error type
+          if (errorMessage.includes('API key')) {
+            toast.error('Gemini API key required', {
+              description: 'Please add your Gemini API key in Settings → Data Vault to use receipt scanning.',
+              duration: 6000,
+            });
+          } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('Authentication')) {
+            toast.error('Please sign in to scan receipts');
+          } else {
+            showNetworkError(error, 'Receipt scan');
+          }
           setIsScanningReceipt(false);
           return;
         }
@@ -399,10 +413,14 @@ export default function LifeCommandCenter() {
         setIsReceiptReviewOpen(true);
         setIsScanningReceipt(false);
       };
+      reader.onerror = () => {
+        toast.error('Failed to read image file');
+        setIsScanningReceipt(false);
+      };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Receipt scan error:', error);
-      toast.error('Failed to scan receipt.');
+      showNetworkError(error, 'Receipt scan');
       setIsScanningReceipt(false);
     }
   };
