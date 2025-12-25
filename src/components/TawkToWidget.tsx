@@ -92,22 +92,16 @@ export function TawkToWidget() {
 
     // Validate and extract widget ID from property ID
     // Tawk.to property IDs should be alphanumeric with format: propertyId/widgetId
-    const TAWKTO_ID_REGEX = /^[a-f0-9]{24}\/[a-z0-9]+$/i;
     const TAWKTO_PROPERTY_REGEX = /^[a-f0-9]{24}$/i;
     
     const parts = config.propertyId.split('/');
     const propertyId = parts[0];
-    const widgetId = parts[1] || '1';
+    // Default widget ID is typically "1i..." format for default widget
+    const widgetId = parts[1] || 'default';
     
     // Validate property ID format
     if (!TAWKTO_PROPERTY_REGEX.test(propertyId)) {
-      console.error('Invalid Tawk.to property ID format');
-      return;
-    }
-    
-    // Validate widget ID (alphanumeric only)
-    if (!/^[a-z0-9]+$/i.test(widgetId)) {
-      console.error('Invalid Tawk.to widget ID format');
+      console.error('Invalid Tawk.to property ID format:', propertyId);
       return;
     }
 
@@ -119,15 +113,26 @@ export function TawkToWidget() {
     const script = document.createElement('script');
     script.id = 'tawkto-script';
     script.async = true;
+    // Use the standard Tawk.to embed URL format
     script.src = `https://${ALLOWED_DOMAIN}/${propertyId}/${widgetId}`;
     script.charset = 'UTF-8';
     script.setAttribute('crossorigin', '*');
+    
+    // Add load/error handlers for debugging
+    script.onload = () => {
+      console.log('Tawk.to script loaded successfully');
+    };
+    
+    script.onerror = (e) => {
+      console.error('Tawk.to script failed to load:', e);
+    };
 
     document.head.appendChild(script);
 
     // Set visitor info when available
     if (user && profile) {
       window.Tawk_API.onLoad = function() {
+        console.log('Tawk.to widget loaded');
         window.Tawk_API?.setAttributes?.({
           name: profile.display_name || 'User',
           email: user.email || '',
