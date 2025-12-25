@@ -7,10 +7,10 @@ interface LogoProps {
 }
 
 const sizeMap = {
-  sm: { icon: 20, text: 'text-sm' },
-  md: { icon: 28, text: 'text-lg' },
-  lg: { icon: 36, text: 'text-xl' },
-  xl: { icon: 48, text: 'text-2xl' },
+  sm: { icon: 24, text: 'text-sm' },
+  md: { icon: 32, text: 'text-lg' },
+  lg: { icon: 40, text: 'text-xl' },
+  xl: { icon: 56, text: 'text-2xl' },
 };
 
 export function Logo({ size = 'md', showText = true, className = '' }: LogoProps) {
@@ -18,32 +18,22 @@ export function Logo({ size = 'md', showText = true, className = '' }: LogoProps
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      {/* Logo with 3D effect via drop shadow and gradient overlay */}
       <div 
         className="relative flex-shrink-0"
         style={{ 
           width: icon, 
-          height: icon,
-          filter: 'drop-shadow(2px 2px 4px rgba(79, 70, 229, 0.3))'
+          height: icon * 1.3, // Leaf is taller than wide
         }}
       >
         <img 
           src={lifeosLogo} 
           alt="LifeOS" 
-          className="w-full h-full object-contain dark:brightness-110 dark:contrast-110"
-          style={{
-            filter: 'saturate(1.1)'
-          }}
-        />
-        {/* 3D depth overlay */}
-        <div 
-          className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/10 rounded-full pointer-events-none"
-          style={{ mixBlendMode: 'overlay' }}
+          className="w-full h-full object-contain"
         />
       </div>
       
       {showText && (
-        <span className={`font-bold tracking-tight ${text} text-foreground`}>
+        <span className={`font-semibold tracking-tight ${text} text-foreground`}>
           LifeOS
         </span>
       )}
