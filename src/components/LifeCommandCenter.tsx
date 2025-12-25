@@ -12,8 +12,7 @@ import { JournalTab } from '@/components/tabs/JournalTab';
 import { SettingsTab } from '@/components/tabs/SettingsTab';
 import { HelpTab } from '@/components/tabs/HelpTab';
 import { SaveIndicator } from '@/components/SaveIndicator';
-import { AICommandButton } from '@/components/AICommandButton';
-import { FloatingFocusTimer } from '@/components/FloatingFocusTimer';
+import { FloatingActionHub } from '@/components/FloatingActionHub';
 import { ModuleDisabled } from '@/components/ModuleDisabled';
 import { SavingsGoalModal } from '@/components/SavingsGoalModal';
 import { ReceiptReviewModal } from '@/components/ReceiptReviewModal';
@@ -830,8 +829,9 @@ export default function LifeCommandCenter() {
         
         <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
         
-        {/* AI Command Button */}
-        <AICommandButton 
+        {/* Unified Floating Action Hub */}
+        <FloatingActionHub 
+          todayTasks={tasks[`d${currentDayIndex}`] || []}
           onAddTask={(day, task) => setTasks(prev => ({
             ...prev,
             [day]: [...(prev[day] || []), task]
@@ -839,9 +839,6 @@ export default function LifeCommandCenter() {
           onAddTransaction={(transaction) => setTransactions(prev => [...prev, transaction])}
           onAddSavingsGoal={(goal) => setSavingsGoals(prev => [...prev, goal])}
         />
-        
-        {/* Floating Focus Timer */}
-        <FloatingFocusTimer todayTasks={tasks[`d${currentDayIndex}`] || []} />
         
         {/* Modals */}
         <Modal isOpen={modalConfig.isOpen} onClose={closeModal} title={getModalTitle()}>
