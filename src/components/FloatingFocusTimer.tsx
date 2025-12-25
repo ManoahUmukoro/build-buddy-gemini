@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { FocusReflectionModal } from '@/components/FocusReflectionModal';
+import { playSuccessSound } from '@/lib/notificationSound';
 
 interface Task {
   id: string | number;
@@ -84,6 +85,9 @@ export function FloatingFocusTimer({ todayTasks = [], onSessionComplete, onClose
     setIsRunning(false);
     const taskLabel = getTaskLabel();
     const durationMinutes = Math.ceil(sessionDuration / 60);
+
+    // Play success sound
+    playSuccessSound();
 
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Focus Session Complete! 🎉', {
