@@ -791,18 +791,11 @@ export function FinanceTab({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-card border border-border">
-                            <DropdownMenuItem asChild>
-                              <SavingsEntriesHistory
-                                goalId={String(goal.id)}
-                                goalName={goal.name}
-                                currency={currency}
-                                trigger={
-                                  <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm">
-                                    <History size={14} /> View History
-                                  </button>
-                                }
-                              />
-                            </DropdownMenuItem>
+                            <SavingsEntriesHistory
+                              goalId={String(goal.id)}
+                              goalName={goal.name}
+                              currency={currency}
+                            />
                             <DropdownMenuItem 
                               onClick={() => onOpenModal('deleteSavings', goal.id)}
                               className="text-destructive focus:text-destructive"
