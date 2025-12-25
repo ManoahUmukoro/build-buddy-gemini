@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { formatCurrency, getCurrentDayIndex } from '@/lib/formatters';
 import { extractEdgeFunctionError, showNetworkError } from '@/lib/networkErrorHandler';
+import { playReminderSound } from '@/lib/notificationSound';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -140,6 +141,9 @@ export default function LifeCommandCenter() {
               t.id === task.id ? { ...t, alerted: true } : t
             ) || []
           }));
+          
+          // Play reminder sound
+          playReminderSound();
           
           // Browser notification
           if ('Notification' in window && Notification.permission === 'granted') {

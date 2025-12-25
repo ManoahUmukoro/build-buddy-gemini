@@ -72,30 +72,60 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Fetch the email template from database - NO FALLBACK
+    // Fetch the email template from database - use fallback if not found
     const { data: template, error: templateError } = await supabase
       .from('email_templates')
       .select('subject, body, is_active')
       .eq('slug', 'task_reminder')
       .single();
 
-    if (templateError || !template) {
-      console.error("Email template 'task_reminder' not found in database - skipping email");
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: "Email template not configured. Please add 'task_reminder' template in admin." 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    let emailSubject: string;
+    let emailBody: string;
 
-    if (!template.is_active) {
-      console.log("Task reminder template is inactive");
-      return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (templateError || !template) {
+      console.log("Email template 'task_reminder' not found - using fallback template");
+      
+      // Fallback template
+      emailSubject = `⏰ Reminder: ${taskText}`;
+      emailBody = `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #6366f1; margin-bottom: 16px;">Hey ${userName || userEmail.split('@')[0]}! 👋</h2>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            You have a task scheduled for <strong>${taskTime}</strong>:
+          </p>
+          <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; margin: 16px 0; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #111827; font-weight: 500;">${taskText}</p>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">
+            Stay focused and make it happen! 💪
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            Sent from LifeOS - Your Personal Operating System
+          </p>
+        </div>
+      `;
+    } else {
+      if (!template.is_active) {
+        console.log("Task reminder template is inactive");
+        return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const name = userName || userEmail.split('@')[0];
+
+      // Replace variables in template
+      const variables = {
+        name,
+        task_text: taskText,
+        task_time: taskTime,
+        email: userEmail,
+      };
+
+      emailSubject = replaceVariables(template.subject, variables);
+      emailBody = replaceVariables(template.body, variables);
     }
 
     // Fetch email configuration
@@ -109,19 +139,6 @@ const handler = async (req: Request): Promise<Response> => {
     const fromEmail = config.from_email || 'onboarding@resend.dev';
     const fromName = config.from_name || 'LifeOS';
 
-    const name = userName || userEmail.split('@')[0];
-
-    // Replace variables in template
-    const variables = {
-      name,
-      task_text: taskText,
-      task_time: taskTime,
-      email: userEmail,
-    };
-
-    const subject = replaceVariables(template.subject, variables);
-    const body = replaceVariables(template.body, variables);
-
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -131,8 +148,8 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: `${fromName} <${fromEmail}>`,
         to: [userEmail],
-        subject,
-        html: body,
+        subject: emailSubject,
+        html: emailBody,
       }),
     });
 
