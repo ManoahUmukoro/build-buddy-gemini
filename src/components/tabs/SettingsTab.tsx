@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Download, Upload, Key, Check, X, Eye, EyeOff, User, Bell, 
-  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown
+  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  scheduleDailyCheckin, 
+  requestNotificationPermission, 
+  showTestNotification,
+  initializeNotifications 
+} from '@/lib/notificationScheduler';
 
 interface SettingsTabProps {
   onBackup: () => void;
@@ -59,6 +65,24 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
   const [savingSettings, setSavingSettings] = useState(false);
   
   const [userPlan, setUserPlan] = useState<string>('free');
+  const [dailyCheckinEnabled, setDailyCheckinEnabled] = useState(false);
+  const [settingUpNotifications, setSettingUpNotifications] = useState(false);
+
+  // Initialize notifications on mount
+  useEffect(() => {
+    initializeNotifications();
+    
+    // Check if daily checkin is enabled
+    const schedule = localStorage.getItem('lifeos_daily_checkin_schedule');
+    if (schedule) {
+      try {
+        const parsed = JSON.parse(schedule);
+        setDailyCheckinEnabled(parsed.enabled);
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }, []);
 
   // Load profile data
   useEffect(() => {
@@ -189,10 +213,43 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
     if (permission === 'granted') {
       await updateNotifications({ push_enabled: true });
       toast.success('Push notifications enabled!');
-      new Notification('LifeOS', { body: 'Notifications are now enabled!', icon: '/favicon.ico' });
+      new Notification('LifeOS', { body: 'Notifications are now enabled!', icon: '/lifeos-logo.png' });
     } else {
       toast.error('Please enable notifications in your browser settings');
     }
+  };
+
+  // Enable daily check-in notifications
+  const handleEnableDailyCheckin = async () => {
+    setSettingUpNotifications(true);
+    try {
+      const success = await scheduleDailyCheckin();
+      if (success) {
+        setDailyCheckinEnabled(true);
+        await showTestNotification();
+        toast.success('Daily reminders enabled! You\'ll receive a check-in at 8:00 PM daily.');
+      } else {
+        // On iOS, need manual permission
+        const permission = await requestNotificationPermission();
+        if (permission === 'denied') {
+          toast.error('Please enable notifications in your device settings, then try again.');
+        } else if (permission === 'default') {
+          toast.info('Please tap "Allow" when prompted to enable notifications.');
+        }
+      }
+    } catch (error) {
+      console.error('Error enabling daily checkin:', error);
+      toast.error('Failed to enable notifications. Please try again.');
+    } finally {
+      setSettingUpNotifications(false);
+    }
+  };
+
+  // Disable daily check-in
+  const handleDisableDailyCheckin = () => {
+    localStorage.removeItem('lifeos_daily_checkin_schedule');
+    setDailyCheckinEnabled(false);
+    toast.success('Daily reminders disabled.');
   };
 
   // Account reset
@@ -491,6 +548,51 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                     disabled={!('Notification' in window) || Notification.permission !== 'granted'}
                   />
                 </div>
+              </div>
+
+              {/* Daily Check-in Reminder - Critical for iOS */}
+              <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Clock size={16} className="text-primary" />
+                      <p className="font-medium">Daily Check-in Reminder</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Receive a daily reminder at 8:00 PM to check your Systems & Goals
+                    </p>
+                  </div>
+                  <div className="ml-4">
+                    {dailyCheckinEnabled ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleDisableDailyCheckin}
+                        className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                      >
+                        Disable
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={handleEnableDailyCheckin}
+                        disabled={settingUpNotifications}
+                      >
+                        {settingUpNotifications ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Enable'
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {dailyCheckinEnabled && (
+                  <p className="text-xs text-success mt-2 flex items-center gap-1">
+                    <Check size={12} /> Active - You'll receive reminders at 8:00 PM
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
