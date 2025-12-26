@@ -97,16 +97,10 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Fetch email configuration
-    const { data: emailConfig } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'email_config')
-      .single();
-
-    const config = emailConfig?.value || {};
-    const fromEmail = config.from_email || 'onboarding@resend.dev';
-    const fromName = config.from_name || 'LifeOS';
+    // Fetch email configuration - use hardcoded values for lifeos@webnexer.com
+    const fromEmail = 'lifeos@webnexer.com';
+    const fromName = 'LifeOS';
+    const replyTo = 'support@webnexer.com';
 
     const name = displayName || email.split('@')[0];
 
@@ -128,6 +122,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         from: `${fromName} <${fromEmail}>`,
+        reply_to: replyTo,
         to: [email],
         subject,
         html: body,

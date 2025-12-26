@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -16,10 +16,21 @@ declare global {
   }
 }
 
+// Detect iOS Safari
+function isIOSSafari(): boolean {
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua);
+  const webkit = /WebKit/.test(ua);
+  const notChrome = !/CriOS/.test(ua);
+  return iOS && webkit && notChrome;
+}
+
 export function TawkToWidget() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const [config, setConfig] = useState<SupportWidgetConfig | null>(null);
+  const loadAttemptedRef = useRef(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     async function fetchConfig() {
@@ -86,45 +97,61 @@ export function TawkToWidget() {
     }
 
     // Prevent duplicate scripts
-    if (document.getElementById('tawkto-script')) {
+    if (document.getElementById('tawkto-script') || loadAttemptedRef.current) {
       return;
     }
+
+    // On iOS Safari, Tawk.to may be blocked by privacy settings
+    // We'll try to load it but suppress errors silently
+    const isIOS = isIOSSafari();
 
     // Validate and extract widget ID from property ID
-    // Tawk.to property IDs should be alphanumeric with format: propertyId/widgetId
-    // Property ID is 24 hex characters, widget ID starts with "1" followed by alphanumeric
     const parts = config.propertyId.trim().split('/');
     const propertyId = parts[0]?.trim();
-    // Default widget ID is typically "1i..." or "default" format for default widget
     const widgetId = parts[1]?.trim() || 'default';
     
-    // More flexible validation - just check if we have a reasonable property ID
     if (!propertyId || propertyId.length < 20) {
-      console.error('Invalid Tawk.to property ID format. Expected 24 character hex string, got:', propertyId);
-      console.info('Hint: Get your Property ID from Tawk.to Dashboard → Administration → Channels → Chat Widget');
+      console.error('Invalid Tawk.to property ID format');
       return;
     }
 
-    // Load Tawk.to script - only from whitelisted domain
+    loadAttemptedRef.current = true;
+
+    // Load Tawk.to script
     const ALLOWED_DOMAIN = 'embed.tawk.to';
     window.Tawk_API = window.Tawk_API || {};
     window.Tawk_LoadStart = new Date();
 
+    // Set up error handling before loading
+    window.Tawk_API.onLoadError = function() {
+      setLoadError(true);
+      // Silently handle - don't show error toast on iOS
+      if (!isIOS) {
+        console.log('Tawk.to failed to load - may be blocked by privacy settings');
+      }
+    };
+
     const script = document.createElement('script');
     script.id = 'tawkto-script';
     script.async = true;
-    // Use the standard Tawk.to embed URL format
     script.src = `https://${ALLOWED_DOMAIN}/${propertyId}/${widgetId}`;
     script.charset = 'UTF-8';
     script.setAttribute('crossorigin', '*');
     
-    // Add load/error handlers for debugging
     script.onload = () => {
-      console.log('Tawk.to script loaded successfully');
+      if (!loadError) {
+        console.log('Tawk.to script loaded successfully');
+      }
     };
     
-    script.onerror = (e) => {
-      console.error('Tawk.to script failed to load:', e);
+    script.onerror = () => {
+      setLoadError(true);
+      // Silently fail on iOS - don't show any error to user
+      if (!isIOS) {
+        console.log('Tawk.to blocked by browser privacy settings');
+      }
+      // Remove the failed script
+      script.remove();
     };
 
     document.head.appendChild(script);
@@ -132,15 +159,12 @@ export function TawkToWidget() {
     // Set visitor info when available
     if (user && profile) {
       window.Tawk_API.onLoad = function() {
-        console.log('Tawk.to widget loaded');
         window.Tawk_API?.setAttributes?.({
           name: profile.display_name || 'User',
           email: user.email || '',
           id: user.id,
         }, function(error: any) {
-          if (error) {
-            console.log('Tawk.to setAttributes error:', error);
-          }
+          // Silently handle errors
         });
       };
     }
@@ -151,7 +175,7 @@ export function TawkToWidget() {
         scriptEl.remove();
       }
     };
-  }, [config, user, profile]);
+  }, [config, user, profile, loadError]);
 
   // This component doesn't render anything visible
   return null;

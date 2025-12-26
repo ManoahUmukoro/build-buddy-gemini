@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, LucideIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { TabId, AlertItem } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -9,6 +9,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAdminSettings, ModulesConfig } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Logo } from '@/components/Logo';
+import { Button } from '@/components/ui/button';
 interface SidebarProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
@@ -192,6 +193,8 @@ interface MobileHeaderProps {
 
 export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: MobileHeaderProps) {
   const { profile } = useProfile();
+  const { isAdmin } = useAdminAuth();
+  const navigate = useNavigate();
   const greeting = getGreeting();
   const displayName = profile?.display_name;
   
@@ -204,6 +207,18 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
         )}
       </div>
       <div className="flex items-center gap-0.5">
+        {/* Admin button - only shown on mobile for admin users */}
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/admin')}
+            className="h-8 px-2 text-xs bg-primary/10 text-primary hover:bg-primary/20"
+          >
+            <Shield size={14} className="mr-1" />
+            Admin
+          </Button>
+        )}
         <ThemeToggle />
         <NotificationBell />
         <button 
@@ -231,19 +246,19 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   );
   
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around p-1.5 pb-safe z-40">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around px-2 pt-2 pb-6 z-40" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)' }}>
       {mobileNavItems.map(item => (
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
-          className={`flex flex-col items-center p-1 rounded-lg transition-all ${
+          className={`flex flex-col items-center justify-center min-w-[44px] min-h-[44px] p-1.5 rounded-xl transition-all ${
             activeTab === item.id 
               ? 'text-primary bg-primary/10' 
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={16} />
-          <span className="text-[8px] font-semibold mt-0.5 truncate max-w-[42px]">
+          <item.icon size={28} strokeWidth={1.75} />
+          <span className="text-xs font-medium mt-1 truncate max-w-[56px]">
             {item.id === 'systems' ? 'Goals' : item.id === 'dashboard' ? 'Plan' : item.label.split(' ')[0]}
           </span>
         </button>
