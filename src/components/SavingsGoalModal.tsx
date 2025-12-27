@@ -63,6 +63,14 @@ export function SavingsGoalModal({
       toast.error('Please enter a valid amount');
       return;
     }
+
+    // Check if goal has a valid UUID (not a temp numeric ID)
+    const goalIdStr = String(goal.id);
+    const isValidUUID = goalIdStr.includes('-') && goalIdStr.length === 36;
+    if (!isValidUUID) {
+      toast.error('Saving goal... Please try again in a moment.');
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -78,13 +86,19 @@ export function SavingsGoalModal({
       : Math.max(0, currentBalanceBase - numAmountInBase);
     
     // Add entry to savings_entries table (stored in base currency)
-    await addEntry({
-      savings_goal_id: String(goal.id),
+    const result = await addEntry({
+      savings_goal_id: goalIdStr,
       type: operation,
       amount: numAmountInBase,
       note: note || null,
       date: new Date().toISOString().split('T')[0],
     });
+    
+    if (!result) {
+      toast.error("Couldn't save transaction. Please try again.");
+      setIsSubmitting(false);
+      return;
+    }
     
     // Update the goal balance (in base currency)
     onUpdateBalance(goal.id, newBalanceBase);
