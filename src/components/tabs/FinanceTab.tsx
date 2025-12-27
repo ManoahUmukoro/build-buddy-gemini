@@ -274,34 +274,46 @@ export function FinanceTab({
       {/* Overview Tab */}
       {financeTab === 'overview' && (
         <>
-          {/* Stats Cards */}
+          {/* Stats Cards - 3-Card System */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-            <div className="bg-success/10 p-4 md:p-6 rounded-xl border border-success/20 shadow-soft">
-              <div className="flex items-center gap-2 text-success mb-1 md:mb-2 font-medium text-sm md:text-base">
-                <TrendingUp size={18} className="shrink-0" /> Income
+            {/* Card 1: Income & Balance Combined */}
+            <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft">
+              <div className="flex items-center gap-2 text-success mb-2 font-medium text-sm">
+                <TrendingUp size={16} className="shrink-0" /> Income
               </div>
-              <div className="text-lg md:text-3xl font-bold text-success truncate">
+              <div className="text-lg md:text-2xl font-bold text-success truncate mb-3">
                 {formatCurrency(totalIncome, currency)}
+              </div>
+              <div className="border-t border-border pt-3">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1 font-medium text-xs">
+                  <DollarSign size={14} className="shrink-0" /> Balance
+                </div>
+                <div className={`text-base md:text-xl font-bold truncate ${balance >= 0 ? 'text-card-foreground' : 'text-destructive'}`}>
+                  {formatCurrency(balance, currency)}
+                </div>
               </div>
             </div>
             
-            <div className="bg-primary/10 p-4 md:p-6 rounded-xl border border-primary/20 shadow-soft">
+            {/* Card 2: Expenses */}
+            <div className="bg-destructive/10 p-4 md:p-6 rounded-xl shadow-soft">
+              <div className="flex items-center gap-2 text-destructive mb-1 md:mb-2 font-medium text-sm md:text-base">
+                <Wallet size={18} className="shrink-0" /> Expenses
+              </div>
+              <div className="text-lg md:text-3xl font-bold text-destructive truncate">
+                {formatCurrency(totalIncome - balance, currency)}
+              </div>
+              <span className="text-xs text-destructive/70 font-normal mt-1 block">This month</span>
+            </div>
+            
+            {/* Card 3: Safe Daily Spend */}
+            <div className="bg-primary/10 p-4 md:p-6 rounded-xl shadow-soft">
               <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
-                <Wallet size={18} className="shrink-0" /> <span className="truncate">Safe Daily Spend</span>
+                <CreditCard size={18} className="shrink-0" /> <span className="truncate">Safe Daily Spend</span>
               </div>
               <div className="text-lg md:text-3xl font-bold text-primary truncate">
                 {formatCurrency(safeDailySpend, currency)}
               </div>
-              <span className="text-xs text-primary/70 font-normal hidden md:block mt-1">After bills & current spend</span>
-            </div>
-            
-            <div className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-soft relative">
-              <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
-                <DollarSign size={18} className="shrink-0" /> Balance
-              </div>
-              <div className={`text-lg md:text-3xl font-bold truncate ${balance >= 0 ? 'text-card-foreground' : 'text-destructive'}`}>
-                {formatCurrency(balance, currency)}
-              </div>
+              <span className="text-xs text-primary/70 font-normal mt-1 block">After bills & spending</span>
             </div>
           </div>
 
