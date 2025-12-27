@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Target, DollarSign, Book, Settings, CheckCircle2, HelpCircle, User, Shield, LucideIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TabId, AlertItem } from '@/lib/types';
-import { NotificationBell } from '@/components/NotificationBell';
+import { InboxNotifications } from '@/components/InboxNotifications';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -168,7 +168,7 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <NotificationBell />
+            <InboxNotifications />
           </div>
         </div>
         <a 
@@ -220,7 +220,7 @@ export function MobileHeader({ alerts = [], onClearAlerts, onProfileClick }: Mob
           </Button>
         )}
         <ThemeToggle />
-        <NotificationBell />
+        <InboxNotifications />
         <button 
           onClick={onProfileClick}
           className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
@@ -246,18 +246,21 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   );
   
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border flex justify-around px-2 pt-2 pb-6 z-40" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)' }}>
+    <nav 
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-xl flex justify-around px-2 z-40 h-20"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {mobileNavItems.map(item => (
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
-          className={`flex flex-col items-center justify-center min-w-[44px] min-h-[44px] p-1.5 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] p-2 rounded-2xl transition-all ${
             activeTab === item.id 
-              ? 'text-primary bg-primary/10' 
+              ? 'text-primary' 
               : 'text-muted-foreground'
           }`}
         >
-          <item.icon size={28} strokeWidth={1.75} />
+          <item.icon size={28} strokeWidth={activeTab === item.id ? 2 : 1.5} />
           <span className="text-xs font-medium mt-1 truncate max-w-[56px]">
             {item.id === 'systems' ? 'Goals' : item.id === 'dashboard' ? 'Plan' : item.label.split(' ')[0]}
           </span>

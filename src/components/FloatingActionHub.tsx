@@ -202,7 +202,7 @@ export function FloatingActionHub({
   return (
     <>
       {/* Main Floating Button */}
-      <div ref={menuRef} className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-50">
+      <div ref={menuRef} className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-50">
         {/* Menu Panel */}
         {isOpen && activePanel === 'menu' && (
           <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-lg p-1.5 min-w-[160px] animate-in">

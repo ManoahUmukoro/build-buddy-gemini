@@ -347,6 +347,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_triggers: {
+        Row: {
+          condition: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          message_body: string
+          message_title: string
+          name: string
+          schedule_time: string | null
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          condition?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_body: string
+          message_title: string
+          name: string
+          schedule_time?: string | null
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          condition?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_body?: string
+          message_title?: string
+          name?: string
+          schedule_time?: string | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_history: {
         Row: {
           amount: number
@@ -610,6 +649,39 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          title?: string
           type?: string
           user_id?: string
         }
