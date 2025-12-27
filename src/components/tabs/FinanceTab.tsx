@@ -353,7 +353,7 @@ export function FinanceTab({
                       placeholder="Amount" 
                       value={newTransaction.amount} 
                       onChange={e => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                      className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
+                      className="w-full p-2.5 md:p-3 text-sm rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none" 
                       required 
                     />
                   </div>
@@ -382,7 +382,7 @@ export function FinanceTab({
                           placeholder="Description" 
                           value={newTransaction.description} 
                           onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                          className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none pr-10" 
+                          className="w-full p-2.5 md:p-3 text-sm rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none pr-10" 
                           required 
                         />
                         {canAutoCategorize && (
@@ -404,7 +404,7 @@ export function FinanceTab({
                         placeholder="Description" 
                         value={newTransaction.description} 
                         onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                        className="w-full p-2.5 md:p-3 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none" 
+                        className="w-full p-2.5 md:p-3 text-sm rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none" 
                         required 
                       />
                     </div>
