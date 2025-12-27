@@ -586,7 +586,7 @@ export function useSupabaseData() {
     });
   };
 
-  // Savings goals operations
+  // Savings goals operations - returns updated goals with DB UUIDs
   const setSavingsGoals = async (updater: SavingsGoal[] | ((prev: SavingsGoal[]) => SavingsGoal[])) => {
     if (!user) return;
     const newGoals = typeof updater === 'function' ? updater(savingsGoals) : updater;
@@ -599,23 +599,41 @@ export function useSupabaseData() {
         .eq('user_id', user.id);
       const existingIds = new Set(existing?.map(s => s.id) || []);
       
+      const updatedGoals: SavingsGoal[] = [];
+      
       for (const s of newGoals) {
         const idStr = String(s.id);
         if (isUUID(s.id) && existingIds.has(idStr)) {
           await supabase.from('savings_goals')
             .update({ name: s.name, target: s.target, current: s.current })
             .eq('id', idStr);
+          updatedGoals.push(s);
         } else if (!isUUID(s.id)) {
-          await supabase.from('savings_goals').insert({
-            user_id: user.id,
-            name: s.name,
-            target: s.target,
-            current: s.current
-          });
+          // Insert and get the real UUID back
+          const { data: inserted, error } = await supabase.from('savings_goals')
+            .insert({
+              user_id: user.id,
+              name: s.name,
+              target: s.target,
+              current: s.current
+            })
+            .select('id')
+            .single();
+          
+          if (!error && inserted) {
+            // Replace temp ID with real UUID
+            updatedGoals.push({ ...s, id: inserted.id });
+          } else {
+            console.error('Failed to insert savings goal:', error);
+            updatedGoals.push(s);
+          }
         }
       }
       
-      const newIds = newGoals.filter(s => isUUID(s.id)).map(s => String(s.id));
+      // Update state with real UUIDs
+      setSavingsGoalsState(updatedGoals);
+      
+      const newIds = updatedGoals.filter(s => isUUID(s.id)).map(s => String(s.id));
       const toDelete = existing?.filter(s => !newIds.includes(s.id)) || [];
       for (const s of toDelete) {
         await supabase.from('savings_goals').delete().eq('id', s.id);

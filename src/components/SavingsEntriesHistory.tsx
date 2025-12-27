@@ -19,15 +19,24 @@ interface SavingsEntriesHistoryProps {
 }
 
 export function SavingsEntriesHistory({ goalId, goalName, currency }: SavingsEntriesHistoryProps) {
-  const { entries, loading, deleteEntry } = useSavingsEntries(goalId);
+  const { entries, loading, deleteEntry, refetch } = useSavingsEntries(goalId);
   const [isOpen, setIsOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Refetch entries when dialog opens
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (open) {
+      refetch();
+    }
+  };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     const success = await deleteEntry(id);
     if (success) {
       toast.success('Entry deleted');
+      refetch(); // Refetch after delete
     } else {
       toast.error('Failed to delete entry');
     }
@@ -35,7 +44,7 @@ export function SavingsEntriesHistory({ goalId, goalName, currency }: SavingsEnt
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <History size={14} />

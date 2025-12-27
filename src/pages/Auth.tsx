@@ -50,17 +50,17 @@ export default function Auth() {
           return;
         }
 
-        // Use signUp without auto-confirm to trigger OTP email
-        const { error } = await supabase.auth.signUp({ 
-          email, 
-          password,
+        // Use signInWithOtp to trigger OTP email (aligns with OTP verification flow)
+        const { error } = await supabase.auth.signInWithOtp({ 
+          email,
           options: { 
+            shouldCreateUser: true,
             data: { display_name: displayName.trim() }
           }
         });
         
         if (error) {
-          if (error.message.includes('already registered')) {
+          if (error.message.includes('already registered') || error.message.includes('already exists')) {
             toast.error('This email is already registered. Please sign in.');
             setIsLogin(true);
           } else {
@@ -95,19 +95,31 @@ export default function Auth() {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'signup'
+        type: 'email' // Use 'email' type for signInWithOtp flow
       });
 
       if (error) throw error;
 
-      // Create profile after successful verification
+      // After OTP verification, set the password for the user
+      if (data.user && password) {
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: password
+        });
+        
+        if (passwordError) {
+          console.error('Password set error:', passwordError);
+          // Don't block, user is already verified
+        }
+      }
+
+      // Create profile after successful verification (handle_new_user trigger may have created it)
       if (data.user) {
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
+          .upsert({
             user_id: data.user.id,
             display_name: displayName.trim()
-          });
+          }, { onConflict: 'user_id' });
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
@@ -117,7 +129,11 @@ export default function Auth() {
       toast.success('Account verified successfully!');
       navigate('/');
     } catch (error: any) {
-      toast.error(error.message || 'Verification failed. Please try again.');
+      if (error.message?.includes('expired') || error.message?.includes('invalid')) {
+        toast.error('Invalid or expired code. Please request a new one.');
+      } else {
+        toast.error(error.message || 'Verification failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
