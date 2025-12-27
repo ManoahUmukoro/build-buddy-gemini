@@ -1,8 +1,13 @@
-import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Wand2, PenTool, Cpu, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Wand2, PenTool, Cpu, RefreshCw, ChevronLeft, ChevronRight, Download, Calendar } from 'lucide-react';
 import { DAYS } from '@/lib/constants';
 import { Tasks, Task } from '@/lib/types';
 import { formatCurrency } from '@/lib/formatters';
-
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { toast } from 'sonner';
+import { format, startOfWeek, addDays, subWeeks, addWeeks, isSameDay } from 'date-fns';
 
 interface DashboardTabProps {
   tasks: Tasks;
@@ -22,6 +27,32 @@ interface DashboardTabProps {
   onOpenModal: (type: string, data?: any, initialValue?: string) => void;
 }
 
+// Get week dates for display
+function getWeekDates(baseDate: Date) {
+  const monday = startOfWeek(baseDate, { weekStartsOn: 1 });
+  const dates: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    dates.push(addDays(monday, i));
+  }
+  return dates;
+}
+
+function getWeekLabel(baseDate: Date): string {
+  const today = new Date();
+  const thisMonday = startOfWeek(today, { weekStartsOn: 1 });
+  const targetMonday = startOfWeek(baseDate, { weekStartsOn: 1 });
+  
+  if (isSameDay(thisMonday, targetMonday)) return 'This Week';
+  
+  const lastMonday = subWeeks(thisMonday, 1);
+  if (isSameDay(lastMonday, targetMonday)) return 'Last Week';
+  
+  const nextMonday = addWeeks(thisMonday, 1);
+  if (isSameDay(nextMonday, targetMonday)) return 'Next Week';
+  
+  return `${format(targetMonday, 'MMM d')} - ${format(addDays(targetMonday, 6), 'MMM d')}`;
+}
+
 export function DashboardTab({
   tasks,
   setTasks,
@@ -39,6 +70,12 @@ export function DashboardTab({
   onDailyBriefing,
   onOpenModal,
 }: DashboardTabProps) {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  
+  const weekDates = getWeekDates(selectedDate);
+  const isCurrentWeek = isSameDay(startOfWeek(new Date(), { weekStartsOn: 1 }), startOfWeek(selectedDate, { weekStartsOn: 1 }));
+  const isPastWeek = startOfWeek(selectedDate, { weekStartsOn: 1 }) < startOfWeek(new Date(), { weekStartsOn: 1 });
 
   const toggleTaskDone = (day: string, taskId: string | number) => {
     setTasks(prev => ({
@@ -54,10 +91,145 @@ export function DashboardTab({
     }));
   };
 
+  const getTasksForDate = (date: Date) => {
+    const dateKey = format(date, 'yyyy-MM-dd');
+    // Check if we have tasks stored by date
+    if (tasks[dateKey]) return tasks[dateKey];
+    // Fallback to day name for current week
+    if (isCurrentWeek) {
+      const dayName = DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1];
+      return tasks[dayName] || [];
+    }
+    return tasks[dateKey] || [];
+  };
+
+  const getTaskKey = (date: Date) => {
+    if (isCurrentWeek) {
+      return DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1];
+    }
+    return format(date, 'yyyy-MM-dd');
+  };
+
+  const calculateWeeklyStats = () => {
+    let completed = 0;
+    let total = 0;
+    
+    weekDates.forEach(date => {
+      const dayTasks = getTasksForDate(date);
+      dayTasks.forEach(task => {
+        total++;
+        if (task.done) completed++;
+      });
+    });
+    
+    return { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
+  };
+
+  const downloadWeeklySummary = async () => {
+    const stats = calculateWeeklyStats();
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 500;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      toast.error('Failed to generate summary');
+      return;
+    }
+
+    // Background
+    const gradient = ctx.createLinearGradient(0, 0, 800, 500);
+    gradient.addColorStop(0, '#1C1C1E');
+    gradient.addColorStop(1, '#000000');
+    ctx.fillStyle = gradient;
+    ctx.roundRect(0, 0, 800, 500, 20);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = '#22C55E';
+    ctx.lineWidth = 2;
+    ctx.roundRect(10, 10, 780, 480, 15);
+    ctx.stroke();
+
+    // Title
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('📊 Weekly Productivity Summary', 400, 50);
+
+    // Week label
+    ctx.fillStyle = '#9CA3AF';
+    ctx.font = '18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(getWeekLabel(selectedDate), 400, 80);
+
+    // Stats
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`${stats.percentage}%`, 400, 180);
+
+    ctx.fillStyle = '#22C55E';
+    ctx.font = '20px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`${stats.completed} of ${stats.total} tasks completed`, 400, 220);
+
+    // Day breakdown
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const startX = 100;
+    const spacing = 100;
+    
+    dayLabels.forEach((day, i) => {
+      const x = startX + i * spacing;
+      const y = 320;
+      const date = weekDates[i];
+      const dayTasks = getTasksForDate(date);
+      const completed = dayTasks.filter(t => t.done).length;
+      const total = dayTasks.length;
+      const pct = total > 0 ? completed / total : 0;
+      
+      // Bar background
+      ctx.fillStyle = '#374151';
+      ctx.roundRect(x - 20, y - 80, 40, 100, 8);
+      ctx.fill();
+      
+      // Bar fill
+      const fillHeight = pct * 80;
+      ctx.fillStyle = pct === 1 ? '#22C55E' : pct > 0.5 ? '#F59E0B' : '#EF4444';
+      if (fillHeight > 0) {
+        ctx.roundRect(x - 20, y - fillHeight, 40, fillHeight + 20, 8);
+        ctx.fill();
+      }
+      
+      // Day label
+      ctx.fillStyle = '#9CA3AF';
+      ctx.font = '14px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(day, x, y + 20);
+      
+      // Count
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`${completed}/${total}`, x, y + 40);
+    });
+
+    // Branding
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('LifeOS', 770, 480);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = `weekly_summary_${format(selectedDate, 'yyyy-MM-dd')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    toast.success('Weekly summary downloaded!');
+  };
+
   return (
     <div className="space-y-6">
       {/* Command Center Snapshot */}
-      <div className="bg-card p-4 md:p-6 rounded-2xl shadow-soft border border-border grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+      <div className="bg-card p-4 md:p-6 rounded-2xl shadow-soft grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
         <div className="flex flex-col p-2 md:p-0">
           <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-bold">Today's Systems</span>
           <div className="text-lg md:text-2xl font-bold text-card-foreground mt-0.5 md:mt-1">
@@ -79,50 +251,137 @@ export function DashboardTab({
         </div>
       </div>
 
+      {/* Week Navigation */}
+      <div className="flex items-center justify-between gap-2 bg-card p-3 rounded-xl shadow-soft">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(prev => subWeeks(prev, 1))}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronLeft size={18} />
+          </Button>
+          <span className="text-sm font-medium text-card-foreground min-w-[120px] text-center">
+            {getWeekLabel(selectedDate)}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(prev => addWeeks(prev, 1))}
+            disabled={!isPastWeek && isCurrentWeek}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronRight size={18} />
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1">
+                <Calendar size={14} />
+                <span className="hidden sm:inline text-xs">Pick Date</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setCalendarOpen(false);
+                  }
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          
+          {!isCurrentWeek && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(new Date())}
+              className="text-xs h-8"
+            >
+              Today
+            </Button>
+          )}
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadWeeklySummary}
+            className="h-8 gap-1"
+            title="Download Weekly Summary"
+          >
+            <Download size={14} />
+            <span className="hidden sm:inline text-xs">Export</span>
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20 md:pb-0">
-        {DAYS.map(day => (
-          <div key={day} className="bg-card p-4 rounded-xl shadow-soft border border-border flex flex-col h-64 hover:shadow-card transition-shadow">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-card-foreground">{day}</h3>
-              <div className="flex gap-1">
-                <button 
-                  onClick={() => onSmartSort(day)} 
-                  className="bg-success/10 text-success hover:bg-success/20 p-2 rounded-full transition-colors" 
-                  title="Smart Sort"
-                >
-                  {sortingDay === day ? <Loader2 className="animate-spin" size={16} /> : <ListOrdered size={16} />}
-                </button>
-                <button 
-                  onClick={() => onOpenModal('generateSchedule', day)} 
-                  className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
-                >
-                  <Sparkles size={16} />
-                </button>
-                <button 
-                  onClick={() => onOpenModal('addTask', day)} 
-                  className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
-                >
-                  <Plus size={16} />
-                </button>
+        {weekDates.map((date, idx) => {
+          const dayName = DAYS[idx];
+          const taskKey = getTaskKey(date);
+          const dayTasks = getTasksForDate(date);
+          const isToday = isSameDay(date, new Date());
+          
+          return (
+            <div 
+              key={dayName} 
+              className={`bg-card p-4 rounded-xl shadow-soft flex flex-col h-64 hover:shadow-card transition-shadow ${isToday ? 'ring-2 ring-primary/30' : ''}`}
+            >
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <h3 className="font-bold text-card-foreground">{dayName}</h3>
+                  <span className="text-[10px] text-muted-foreground">{format(date, 'MMM d')}</span>
+                </div>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={() => onSmartSort(taskKey)} 
+                    className="bg-success/10 text-success hover:bg-success/20 p-2 rounded-full transition-colors" 
+                    title="Smart Sort"
+                    disabled={isPastWeek && !isCurrentWeek}
+                  >
+                    {sortingDay === taskKey ? <Loader2 className="animate-spin" size={16} /> : <ListOrdered size={16} />}
+                  </button>
+                  <button 
+                    onClick={() => onOpenModal('generateSchedule', taskKey)} 
+                    className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
+                    disabled={isPastWeek && !isCurrentWeek}
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                  <button 
+                    onClick={() => onOpenModal('addTask', taskKey)} 
+                    className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                {dayTasks.map((task, taskIdx) => (
+                  <TaskItem 
+                    key={`${task.id}-${taskIdx}`} 
+                    task={task} 
+                    day={taskKey}
+                    breakingDownTask={breakingDownTask}
+                    onToggle={() => toggleTaskDone(taskKey, task.id)}
+                    onDelete={() => deleteTask(taskKey, task.id)}
+                    onEdit={() => onOpenModal('editTask', { day: taskKey, taskId: task.id }, task.text)}
+                    onBreakdown={() => onBreakdownTask(taskKey, task.id, task.text)}
+                    onSmartDraft={() => onSmartDraft(task.text)}
+                  />
+                ))}
               </div>
             </div>
-            <div className="overflow-y-auto flex-1 space-y-2 pr-1">
-              {(tasks[day] || []).map((task, idx) => (
-                <TaskItem 
-                  key={`${task.id}-${idx}`} 
-                  task={task} 
-                  day={day}
-                  breakingDownTask={breakingDownTask}
-                  onToggle={() => toggleTaskDone(day, task.id)}
-                  onDelete={() => deleteTask(day, task.id)}
-                  onEdit={() => onOpenModal('editTask', { day, taskId: task.id }, task.text)}
-                  onBreakdown={() => onBreakdownTask(day, task.id, task.text)}
-                  onSmartDraft={() => onSmartDraft(task.text)}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         
         {/* Brain Dump */}
         <div className="bg-warning/10 p-4 rounded-xl shadow-soft border border-warning/20 flex flex-col h-64">
