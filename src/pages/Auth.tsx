@@ -5,17 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, User } from 'lucide-react';
+import { Loader2, Mail, Lock, User, LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Auth() {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpType, setOtpType] = useState<'signup' | 'password_reset'>('signup');
 
@@ -91,13 +96,6 @@ export default function Auth() {
           return;
         }
 
-        // Check if user already exists
-        const { data: existingUser } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', email)
-          .maybeSingle();
-
         // Send custom verification code via our edge function
         await sendVerificationCode('signup');
         
@@ -116,6 +114,27 @@ export default function Auth() {
       } else {
         toast.error(error.message || 'An error occurred. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    setLoading(true);
+
+    try {
+      await sendVerificationCode('password_reset');
+      setOtpType('password_reset');
+      setShowOtpInput(true);
+      setShowForgotPassword(false);
+      toast.success('Password reset code sent to your email!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send reset code');
     } finally {
       setLoading(false);
     }
@@ -143,7 +162,7 @@ export default function Auth() {
         if (signupError) throw signupError;
 
         if (signupData.user) {
-          // Create profile immediately (handle_new_user trigger should do this too)
+          // Create profile immediately
           const { error: profileError } = await supabase
             .from('profiles')
             .upsert({
@@ -157,15 +176,15 @@ export default function Auth() {
 
           toast.success('Account created successfully!');
           
-          // Auto-login after signup (since we verified email)
+          // Auto-login after signup (auto-confirm is enabled)
           const { error: loginError } = await supabase.auth.signInWithPassword({
             email,
             password
           });
 
           if (loginError) {
-            console.log('Auto-login failed, user may need to confirm email:', loginError);
-            toast.info('Please check your email to confirm your account, then sign in.');
+            console.log('Auto-login failed:', loginError);
+            toast.info('Account created! Please sign in.');
             setShowOtpInput(false);
             setIsLogin(true);
           } else {
@@ -173,9 +192,10 @@ export default function Auth() {
           }
         }
       } else if (otpType === 'password_reset') {
-        // Password reset flow - allow setting new password
-        toast.success('Code verified! You can now set a new password.');
-        // This would need a new UI state for password reset
+        // Password reset flow - show password reset form
+        setShowOtpInput(false);
+        setShowResetPassword(true);
+        toast.success('Code verified! Enter your new password.');
       }
     } catch (error: any) {
       if (error.message?.includes('expired')) {
@@ -185,6 +205,41 @@ export default function Auth() {
       } else {
         toast.error(error.message || 'Verification failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setLoading(true);
+
+    try {
+      // Use Supabase password reset with magic link approach
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      
+      if (error) {
+        // If user is not logged in, we need a different approach
+        // Since we verified OTP, we'll sign them up with new password
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password: newPassword
+        });
+        
+        if (signInError) {
+          throw new Error('Unable to update password. Please try signing up again.');
+        }
+      }
+      
+      toast.success('Password updated! Redirecting...');
+      setShowResetPassword(false);
+      navigate('/');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reset password');
     } finally {
       setLoading(false);
     }
@@ -201,6 +256,185 @@ export default function Auth() {
       setLoading(false);
     }
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success('Signed out successfully');
+    } catch (error: any) {
+      toast.error('Failed to sign out');
+    }
+  };
+
+  // Show sign out option if user is somehow on auth page while logged in
+  if (user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="flex justify-center mb-4">
+            <Logo size="xl" showText={false} />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-4">You're already signed in</h1>
+          <p className="text-muted-foreground mb-6">
+            Signed in as <strong className="text-foreground">{user.email}</strong>
+          </p>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => navigate('/')}
+              className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold"
+            >
+              Go to Dashboard
+            </Button>
+            <Button
+              onClick={handleSignOut}
+              variant="outline"
+              className="w-full h-12 rounded-xl font-bold"
+            >
+              <LogOut className="mr-2" size={18} />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Password reset form (after OTP verified)
+  if (showResetPassword) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" showText={false} />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Set New Password</h1>
+            <p className="text-muted-foreground text-sm">
+              Enter a new password for <strong className="text-foreground">{email}</strong>
+            </p>
+          </div>
+
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-card">
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword" className="text-xs font-bold text-muted-foreground uppercase">
+                  New Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10 h-12 bg-muted border-0 rounded-xl"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || newPassword.length < 6}
+                className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Password'
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetPassword(false);
+                  setNewPassword('');
+                  setIsLogin(true);
+                }}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Forgot password form
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" showText={false} />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Forgot Password</h1>
+            <p className="text-muted-foreground text-sm">
+              Enter your email and we'll send you a reset code
+            </p>
+          </div>
+
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-card">
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="resetEmail" className="text-xs font-bold text-muted-foreground uppercase">
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <Input
+                    id="resetEmail"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="pl-10 h-12 bg-muted border-0 rounded-xl"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || !email}
+                className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    Sending code...
+                  </>
+                ) : (
+                  'Send Reset Code'
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(false)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showOtpInput) {
     return (
@@ -244,8 +478,10 @@ export default function Auth() {
                     <Loader2 className="animate-spin mr-2" size={18} />
                     Verifying...
                   </>
-                ) : (
+                ) : otpType === 'signup' ? (
                   'Verify & Create Account'
+                ) : (
+                  'Verify Code'
                 )}
               </Button>
             </form>
@@ -268,7 +504,7 @@ export default function Auth() {
                   }}
                   className="text-sm text-muted-foreground hover:text-foreground"
                 >
-                  ← Back to sign up
+                  ← Back to {otpType === 'signup' ? 'sign up' : 'forgot password'}
                 </button>
               </div>
             </div>
@@ -368,6 +604,18 @@ export default function Auth() {
                 />
               </div>
             </div>
+
+            {isLogin && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
 
             <Button
               type="submit"
