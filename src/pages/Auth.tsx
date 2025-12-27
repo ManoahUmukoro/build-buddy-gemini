@@ -17,6 +17,7 @@ export default function Auth() {
   const [displayName, setDisplayName] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
+  const [otpType, setOtpType] = useState<'signup' | 'password_reset'>('signup');
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -34,6 +35,40 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  const sendVerificationCode = async (type: 'signup' | 'password_reset') => {
+    const { data, error } = await supabase.functions.invoke('send-verification-code', {
+      body: { email, type, displayName: displayName.trim() || undefined }
+    });
+
+    if (error) {
+      console.error('Send verification code error:', error);
+      throw new Error(error.message || 'Failed to send verification code');
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data;
+  };
+
+  const verifyCode = async (code: string, type: 'signup' | 'password_reset') => {
+    const { data, error } = await supabase.functions.invoke('verify-code', {
+      body: { email, code, type }
+    });
+
+    if (error) {
+      console.error('Verify code error:', error);
+      throw new Error(error.message || 'Verification failed');
+    }
+
+    if (data?.error || !data?.valid) {
+      throw new Error(data?.error || 'Invalid verification code');
+    }
+
+    return data;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -50,26 +85,25 @@ export default function Auth() {
           return;
         }
 
-        // Use signInWithOtp to trigger OTP email (aligns with OTP verification flow)
-        const { error } = await supabase.auth.signInWithOtp({ 
-          email,
-          options: { 
-            shouldCreateUser: true,
-            data: { display_name: displayName.trim() }
-          }
-        });
-        
-        if (error) {
-          if (error.message.includes('already registered') || error.message.includes('already exists')) {
-            toast.error('This email is already registered. Please sign in.');
-            setIsLogin(true);
-          } else {
-            throw error;
-          }
-        } else {
-          setShowOtpInput(true);
-          toast.success('Verification code sent to your email!');
+        if (password.length < 6) {
+          toast.error('Password must be at least 6 characters');
+          setLoading(false);
+          return;
         }
+
+        // Check if user already exists
+        const { data: existingUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', email)
+          .maybeSingle();
+
+        // Send custom verification code via our edge function
+        await sendVerificationCode('signup');
+        
+        setOtpType('signup');
+        setShowOtpInput(true);
+        toast.success('Verification code sent to your email!');
       }
     } catch (error: any) {
       const message = error.message?.toLowerCase() || '';
@@ -92,45 +126,62 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email' // Use 'email' type for signInWithOtp flow
-      });
+      // Verify the code using our custom edge function
+      await verifyCode(otp, otpType);
 
-      if (error) throw error;
-
-      // After OTP verification, set the password for the user
-      if (data.user && password) {
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: password
+      if (otpType === 'signup') {
+        // Code verified - now create the user account
+        const { data: signupData, error: signupError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: { display_name: displayName.trim() }
+          }
         });
-        
-        if (passwordError) {
-          console.error('Password set error:', passwordError);
-          // Don't block, user is already verified
+
+        if (signupError) throw signupError;
+
+        if (signupData.user) {
+          // Create profile immediately (handle_new_user trigger should do this too)
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              user_id: signupData.user.id,
+              display_name: displayName.trim()
+            }, { onConflict: 'user_id' });
+
+          if (profileError) {
+            console.error('Profile creation error:', profileError);
+          }
+
+          toast.success('Account created successfully!');
+          
+          // Auto-login after signup (since we verified email)
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+          if (loginError) {
+            console.log('Auto-login failed, user may need to confirm email:', loginError);
+            toast.info('Please check your email to confirm your account, then sign in.');
+            setShowOtpInput(false);
+            setIsLogin(true);
+          } else {
+            navigate('/');
+          }
         }
+      } else if (otpType === 'password_reset') {
+        // Password reset flow - allow setting new password
+        toast.success('Code verified! You can now set a new password.');
+        // This would need a new UI state for password reset
       }
-
-      // Create profile after successful verification (handle_new_user trigger may have created it)
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            user_id: data.user.id,
-            display_name: displayName.trim()
-          }, { onConflict: 'user_id' });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-        }
-      }
-
-      toast.success('Account verified successfully!');
-      navigate('/');
     } catch (error: any) {
-      if (error.message?.includes('expired') || error.message?.includes('invalid')) {
-        toast.error('Invalid or expired code. Please request a new one.');
+      if (error.message?.includes('expired')) {
+        toast.error('Verification code has expired. Please request a new one.');
+      } else if (error.message?.includes('invalid') || error.message?.includes('Invalid')) {
+        toast.error('Invalid verification code. Please try again.');
       } else {
         toast.error(error.message || 'Verification failed. Please try again.');
       }
@@ -142,12 +193,8 @@ export default function Auth() {
   const handleResendOtp = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-      });
-      if (error) throw error;
-      toast.success('Verification code resent!');
+      await sendVerificationCode(otpType);
+      toast.success('New verification code sent!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to resend code');
     } finally {
@@ -165,7 +212,7 @@ export default function Auth() {
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">Check Your Email</h1>
             <p className="text-muted-foreground text-sm">
-              We sent a verification code to <strong className="text-foreground">{email}</strong>
+              We sent a 6-digit verification code to <strong className="text-foreground">{email}</strong>
             </p>
           </div>
 
@@ -179,9 +226,9 @@ export default function Auth() {
                   id="otp"
                   type="text"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter 6-digit code"
-                  className="h-12 bg-muted border-0 rounded-xl text-center text-lg tracking-widest"
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="h-12 bg-muted border-0 rounded-xl text-center text-lg tracking-widest font-mono"
                   maxLength={6}
                   required
                 />
@@ -189,7 +236,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || otp.length !== 6}
                 className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90"
               >
                 {loading ? (
@@ -198,7 +245,7 @@ export default function Auth() {
                     Verifying...
                   </>
                 ) : (
-                  'Verify & Continue'
+                  'Verify & Create Account'
                 )}
               </Button>
             </form>
@@ -330,7 +377,7 @@ export default function Auth() {
               {loading ? (
                 <>
                   <Loader2 className="animate-spin mr-2" size={18} />
-                  {isLogin ? 'Signing in...' : 'Creating account...'}
+                  {isLogin ? 'Signing in...' : 'Sending code...'}
                 </>
               ) : (
                 <>
