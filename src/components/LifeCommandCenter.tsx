@@ -15,6 +15,7 @@ import { SaveIndicator } from '@/components/SaveIndicator';
 import { FloatingActionHub } from '@/components/FloatingActionHub';
 import { ModuleDisabled } from '@/components/ModuleDisabled';
 import { SavingsGoalModal } from '@/components/SavingsGoalModal';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { ReceiptReviewModal } from '@/components/ReceiptReviewModal';
 import { TaskInputModal } from '@/components/TaskInputModal';
 import { DailyPlanAssistant } from '@/components/DailyPlanAssistant';
@@ -226,7 +227,9 @@ export default function LifeCommandCenter() {
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear() && t.type === 'income';
   }).reduce((acc, t) => acc + t.amount, 0);
   
-  const remainingBudget = currentMonthIncome - totalFixedCosts - currentMonthExpenses;
+  // Safe Daily Spend formula: [Balance - Fixed Expenses - Savings Goals] / Days Remaining
+  const totalSavingsGoals = savingsGoals.reduce((acc, g) => acc + (g.target - g.current), 0);
+  const remainingBudget = balance - totalFixedCosts - Math.max(0, totalSavingsGoals);
   const safeDailySpend = Math.max(0, remainingBudget / daysLeft);
 
   const expenseData = categories.map(cat => ({
@@ -1111,6 +1114,33 @@ export default function LifeCommandCenter() {
               currency={currency}
               onSave={handleSaveSavingsGoal}
               onUpdateBalance={handleUpdateSavingsBalance}
+              onClose={closeModal}
+            />
+          </Modal>
+        )}
+        
+        {/* Subscription Modal */}
+        {(modalConfig.type === 'addSubscription' || modalConfig.type === 'editSubscription') && (
+          <Modal 
+            isOpen={modalConfig.isOpen} 
+            onClose={closeModal} 
+            title={modalConfig.type === 'addSubscription' ? 'Add Subscription' : 'Edit Subscription'}
+          >
+            <SubscriptionModal
+              mode={modalConfig.type === 'addSubscription' ? 'add' : 'edit'}
+              initialName={modalConfig.type === 'editSubscription' ? modalConfig.data?.name : ''}
+              initialAmount={modalConfig.type === 'editSubscription' ? modalConfig.data?.amount : 0}
+              currency={currency}
+              onSave={async (name, amount) => {
+                if (modalConfig.type === 'addSubscription') {
+                  await setSubscriptions(prev => [...prev, { id: Date.now(), name, amount }]);
+                } else {
+                  await setSubscriptions(prev => prev.map(s => 
+                    String(s.id) === String(modalConfig.data?.id) ? { ...s, name, amount } : s
+                  ));
+                }
+                closeModal();
+              }}
               onClose={closeModal}
             />
           </Modal>
