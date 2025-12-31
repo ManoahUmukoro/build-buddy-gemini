@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Download, Upload, Key, Check, X, Eye, EyeOff, User, Bell, 
-  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown, Clock
+  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown, Clock, LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -363,6 +363,20 @@ export function SettingsTab({ onBackup, onRestore, geminiApiKey, onSaveApiKey }:
                 {savingProfile ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
                 Save Profile
               </Button>
+
+              <div className="pt-4 border-t border-border">
+                <Button 
+                  variant="outline" 
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = '/auth';
+                  }}
+                  className="w-full"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  Sign Out
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

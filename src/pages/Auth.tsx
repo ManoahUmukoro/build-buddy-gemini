@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, User, LogOut } from 'lucide-react';
+import { Loader2, Mail, Lock, User, LogOut, Eye, EyeOff } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -23,6 +23,7 @@ export default function Auth() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpType, setOtpType] = useState<'signup' | 'password_reset'>('signup');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -594,14 +595,21 @@ export default function Auth() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-10 h-12 bg-muted border-0 rounded-xl"
+                  className="pl-10 pr-10 h-12 bg-muted border-0 rounded-xl"
                   required
                   minLength={6}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
