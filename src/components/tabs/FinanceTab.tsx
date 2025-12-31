@@ -355,7 +355,7 @@ export function FinanceTab({
                       type="date" 
                       value={newTransaction.date} 
                       onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
-                      className="w-full p-2 md:p-3 text-xs md:text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none" 
+                      className="w-full p-2 md:p-3 text-xs md:text-sm border border-border rounded-lg bg-muted focus:ring-2 focus:ring-primary/20 outline-none [color-scheme:light] dark:[color-scheme:dark]" 
                       required 
                     />
                   </div>
@@ -365,7 +365,7 @@ export function FinanceTab({
                       placeholder="Amount" 
                       value={newTransaction.amount} 
                       onChange={e => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                      className="w-full p-2.5 md:p-3 text-sm rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none" 
+                      className="w-full p-2.5 md:p-3 text-sm rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none [color-scheme:light] dark:[color-scheme:dark]" 
                       required 
                     />
                   </div>
@@ -502,7 +502,7 @@ export function FinanceTab({
                             placeholder="0"
                             value={filterAmountMin}
                             onChange={(e) => setFilterAmountMin(e.target.value)}
-                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background [color-scheme:light] dark:[color-scheme:dark]"
                           />
                         </div>
 
@@ -514,7 +514,7 @@ export function FinanceTab({
                             placeholder="∞"
                             value={filterAmountMax}
                             onChange={(e) => setFilterAmountMax(e.target.value)}
-                            className="w-full p-2 text-xs border border-border rounded-lg bg-background"
+                            className="w-full p-2 text-xs border border-border rounded-lg bg-background [color-scheme:light] dark:[color-scheme:dark]"
                           />
                         </div>
                       </div>
@@ -615,7 +615,7 @@ export function FinanceTab({
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-muted-foreground">{formatCurrency(sub.amount, currency)}</span>
                         <button 
-                          onClick={() => onOpenModal('editSubscription', { id: sub.id, value: `${sub.name} ${sub.amount}` })} 
+                          onClick={() => onOpenModal('editSubscription', { id: sub.id, name: sub.name, amount: sub.amount })} 
                           className="text-muted-foreground/50 hover:text-primary p-1 md:opacity-0 md:group-hover:opacity-100"
                         >
                           <Edit2 size={12} />
@@ -642,26 +642,28 @@ export function FinanceTab({
               {/* Spending Chart */}
               <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
                 <h3 className="font-bold text-card-foreground mb-2 text-sm md:text-base">Spending Chart</h3>
-                <div className="h-36 md:h-40 w-full mb-3 md:mb-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={expenseData} 
-                        cx="50%" 
-                        cy="50%" 
-                        innerRadius={35} 
-                        outerRadius={55} 
-                        paddingAngle={5} 
-                        dataKey="value"
-                      >
-                        {expenseData.map((_, i) => (
-                          <Cell key={`cell-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(val) => formatCurrency(val as number, currency)} />
-                      <Legend wrapperStyle={{ fontSize: "10px" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="h-36 md:h-40 w-full mb-3 md:mb-4 overflow-x-auto scrollbar-hide">
+                  <div className="min-w-[280px] h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie 
+                          data={expenseData} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={35} 
+                          outerRadius={55} 
+                          paddingAngle={5} 
+                          dataKey="value"
+                        >
+                          {expenseData.map((_, i) => (
+                            <Cell key={`cell-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val) => formatCurrency(val as number, currency)} />
+                        <Legend wrapperStyle={{ fontSize: "10px" }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
                 <button 
                   onClick={onAnalyzeFinances} 
@@ -680,7 +682,7 @@ export function FinanceTab({
                   onClick={() => setIsFinanceChatOpen(true)} 
                   className="w-full mt-3 md:mt-4 bg-secondary text-secondary-foreground py-2 rounded-lg text-xs md:text-sm font-medium flex items-center justify-center gap-2"
                 >
-                  <MessageCircle size={14} /> Chat with Finance Expert
+                  <MessageCircle size={14} /> Chat with Nexer
                 </button>
               </div>
             </div>
@@ -788,6 +790,11 @@ export function FinanceTab({
                         <h4 className="font-bold text-lg md:text-xl text-card-foreground truncate">{goal.name}</h4>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        <SavingsEntriesHistory
+                          goalId={String(goal.id)}
+                          goalName={goal.name}
+                          currency={currency}
+                        />
                         <Button 
                           onClick={() => onOpenModal('editSavingsDeposit', { id: goal.id, current: goal.current, name: goal.name })} 
                           variant="outline"
@@ -803,11 +810,6 @@ export function FinanceTab({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-card border border-border">
-                            <SavingsEntriesHistory
-                              goalId={String(goal.id)}
-                              goalName={goal.name}
-                              currency={currency}
-                            />
                             <DropdownMenuItem 
                               onClick={() => onOpenModal('deleteSavings', goal.id)}
                               className="text-destructive focus:text-destructive"
@@ -854,7 +856,7 @@ export function FinanceTab({
       <Modal 
         isOpen={isFinanceChatOpen} 
         onClose={() => setIsFinanceChatOpen(false)} 
-        title="Chat with Finance Expert" 
+        title="Chat with Nexer" 
         maxWidth="max-w-2xl"
       >
         <ChatInterface 
@@ -862,7 +864,7 @@ export function FinanceTab({
           onSend={onFinanceChat} 
           isLoading={isAnalyzingFinance} 
           placeholder="Ask about budgeting, savings, or investments..." 
-          personaName="Finance Expert"
+          personaName="Nexer"
         />
       </Modal>
     </div>
