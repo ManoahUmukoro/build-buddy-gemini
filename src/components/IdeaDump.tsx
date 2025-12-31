@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type KeyboardEvent } from 'react';
 import { Plus, Trash2, Mic, MicOff, Lightbulb, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Task, Tasks } from '@/lib/types';
+import { Task } from '@/lib/types';
 
 interface IdeaDumpProps {
   ideas: Task[];
@@ -15,54 +15,88 @@ export function IdeaDump({ ideas, onAddIdea, onDeleteIdea }: IdeaDumpProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [newIdea, setNewIdea] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef('');
 
   const startRecording = async () => {
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) {
+      toast.error('Voice transcription isn\'t supported in this browser.');
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
+      finalTranscriptRef.current = '';
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
+      const recognition = new SpeechRecognitionCtor();
+      recognitionRef.current = recognition;
+
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const piece = String(event.results[i][0]?.transcript || '');
+          if (event.results[i].isFinal) {
+            finalTranscriptRef.current = `${finalTranscriptRef.current} ${piece}`.trim();
+          } else {
+            interim = `${interim} ${piece}`.trim();
+          }
+        }
+
+        const combined = `${finalTranscriptRef.current} ${interim}`.trim();
+        if (combined) setNewIdea(combined);
+      };
+
+      recognition.onerror = (e: any) => {
+        console.error('Speech recognition error:', e);
+        setIsRecording(false);
+        setIsTranscribing(false);
+        toast.error('Voice transcription failed. Please try again.');
+      };
+
+      recognition.onend = () => {
+        setIsTranscribing(false);
+        setIsRecording(false);
+        recognitionRef.current = null;
+
+        const transcript = (finalTranscriptRef.current || newIdea).trim();
+        if (transcript) {
+          setNewIdea(transcript);
+          toast.success('Transcription ready — review and tap + to save.');
+        } else {
+          toast.info('No speech detected. You can type your idea instead.');
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        
-        // Try Web Speech API for transcription
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-          toast.success('Voice note captured! Transcription available on supported browsers.');
-        }
-        
-        // For now, just add a placeholder - in production you'd send to a transcription API
-        setIsTranscribing(true);
-        
-        // Simulate transcription delay
-        setTimeout(() => {
-          setIsTranscribing(false);
-          toast.info('Voice note recorded. Type your idea to save it.');
-        }, 500);
-      };
-
-      mediaRecorder.start();
+      recognition.start();
       setIsRecording(true);
-      toast.info('Recording started... Click again to stop.');
+      toast.info('Listening… tap again to stop.');
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error('Could not access microphone. Please check permissions.');
+      console.error('Error starting transcription:', error);
+      toast.error('Could not start voice transcription.');
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (!recognitionRef.current) {
       setIsRecording(false);
+      return;
+    }
+
+    setIsRecording(false);
+    setIsTranscribing(true);
+
+    try {
+      recognitionRef.current.stop();
+    } catch (error) {
+      console.error('Error stopping transcription:', error);
+      setIsTranscribing(false);
     }
   };
 
@@ -82,7 +116,7 @@ export function IdeaDump({ ideas, onAddIdea, onDeleteIdea }: IdeaDumpProps) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleAddIdea();
