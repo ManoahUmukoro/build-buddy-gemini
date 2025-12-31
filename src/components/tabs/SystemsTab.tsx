@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Target, Sparkles, Trash2, Edit2, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react';
+import { Plus, Target, Sparkles, Trash2, Edit2, ChevronLeft, ChevronRight, Download, Info, ChevronDown } from 'lucide-react';
 import { System } from '@/lib/types';
 import { DAYS } from '@/lib/constants';
 import { getCurrentDayIndex } from '@/lib/formatters';
@@ -200,6 +200,135 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
     toast.success('Streak card downloaded!');
   };
 
+  // Download all systems summary
+  const downloadAllSystemsSummary = async () => {
+    if (systems.length === 0) {
+      toast.error('No systems to export');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    const rowHeight = 80;
+    const headerHeight = 180;
+    const footerHeight = 60;
+    canvas.width = 800;
+    canvas.height = headerHeight + (systems.length * rowHeight) + footerHeight;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      toast.error('Failed to generate summary');
+      return;
+    }
+
+    // OLED Black background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Gradient overlay for depth
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.05)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Border
+    ctx.strokeStyle = '#3B82F6';
+    ctx.lineWidth = 2;
+    ctx.roundRect(10, 10, canvas.width - 20, canvas.height - 20, 15);
+    ctx.stroke();
+
+    // Title
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🎯 Systems & Goals Summary', canvas.width / 2, 50);
+
+    // Week label
+    ctx.fillStyle = '#3B82F6';
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    const dates = getWeekDates(weekOffset);
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[6]);
+    ctx.fillText(
+      `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      canvas.width / 2, 
+      80
+    );
+
+    // Overall stats
+    let totalCompleted = 0;
+    let totalPossible = 0;
+    systems.forEach(system => {
+      system.habits.forEach(habit => {
+        weekDates.forEach(date => {
+          totalPossible++;
+          if (habit.completed[date]) totalCompleted++;
+        });
+      });
+    });
+    const overallPercentage = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 48px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`${overallPercentage}%`, canvas.width / 2, 140);
+
+    ctx.fillStyle = '#9CA3AF';
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`Overall consistency (${totalCompleted}/${totalPossible} check-ins)`, canvas.width / 2, 165);
+
+    // System rows
+    let yOffset = headerHeight;
+    systems.forEach((system) => {
+      const percentage = calculateStreakPercentage(system);
+      
+      // Row background
+      ctx.fillStyle = '#1C1C1E';
+      ctx.beginPath();
+      ctx.roundRect(30, yOffset, canvas.width - 60, 65, 10);
+      ctx.fill();
+
+      // Goal name
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`🎯 ${system.goal}`, 50, yOffset + 28);
+
+      // Why text
+      ctx.fillStyle = '#9CA3AF';
+      ctx.font = 'italic 12px system-ui, -apple-system, sans-serif';
+      const whyText = system.why.length > 50 ? system.why.substring(0, 50) + '...' : system.why;
+      ctx.fillText(whyText, 50, yOffset + 48);
+
+      // Percentage badge
+      const badgeColor = percentage >= 70 ? '#22C55E' : percentage >= 40 ? '#F59E0B' : '#EF4444';
+      ctx.fillStyle = badgeColor;
+      ctx.beginPath();
+      ctx.roundRect(canvas.width - 120, yOffset + 15, 70, 35, 8);
+      ctx.fill();
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${percentage}%`, canvas.width - 85, yOffset + 40);
+
+      yOffset += rowHeight;
+    });
+
+    // Branding
+    ctx.fillStyle = '#4B5563';
+    ctx.font = '12px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('LifeOS', canvas.width - 30, canvas.height - 25);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = `systems_summary_${dates[0]}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    toast.success('Systems summary downloaded!');
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
       {/* Header with Week Navigation */}
@@ -225,12 +354,24 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
             <p className="text-xs text-muted-foreground">Identity-based systems for lasting change.</p>
           </div>
         </div>
-        <button 
-          onClick={() => onOpenModal('addSystem', null, "")}
-          className="bg-secondary text-secondary-foreground px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm hover:bg-secondary/80 flex items-center gap-1.5 md:gap-2 transition-colors w-full sm:w-auto justify-center"
-        >
-          <Target size={14} className="md:w-4 md:h-4" /> New Goal
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadAllSystemsSummary}
+            className="h-9 gap-1 flex-1 sm:flex-initial justify-center"
+            title="Export All Systems"
+          >
+            <Download size={14} />
+            <span className="text-xs">Export</span>
+          </Button>
+          <button 
+            onClick={() => onOpenModal('addSystem', null, "")}
+            className="bg-secondary text-secondary-foreground px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm hover:bg-secondary/80 flex items-center gap-1.5 md:gap-2 transition-colors flex-1 sm:flex-initial justify-center"
+          >
+            <Target size={14} className="md:w-4 md:h-4" /> New Goal
+          </button>
+        </div>
       </div>
 
       {/* Week Navigation */}
@@ -278,23 +419,29 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
             <CollapsibleTrigger asChild>
               <div className="bg-muted p-3 md:p-4 cursor-pointer hover:bg-muted/80 transition-colors">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-card-foreground flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
-                        <Target size={14} className="text-primary md:w-[18px] md:h-[18px] flex-shrink-0" />
-                        <span className="break-words">{system.goal}</span>
-                      </h4>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        calculateStreakPercentage(system) >= 70 
-                          ? 'bg-success/20 text-success' 
-                          : calculateStreakPercentage(system) >= 40 
-                            ? 'bg-warning/20 text-warning' 
-                            : 'bg-muted-foreground/20 text-muted-foreground'
-                      }`}>
-                        {calculateStreakPercentage(system)}%
-                      </span>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <ChevronDown 
+                      size={20} 
+                      className={`text-muted-foreground transition-transform duration-200 flex-shrink-0 ${openSystemId === system.id ? 'rotate-180' : ''}`} 
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-card-foreground flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
+                          <Target size={14} className="text-primary md:w-[18px] md:h-[18px] flex-shrink-0" />
+                          <span className="break-words">{system.goal}</span>
+                        </h4>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          calculateStreakPercentage(system) >= 70 
+                            ? 'bg-success/20 text-success' 
+                            : calculateStreakPercentage(system) >= 40 
+                              ? 'bg-warning/20 text-warning' 
+                              : 'bg-muted-foreground/20 text-muted-foreground'
+                        }`}>
+                          {calculateStreakPercentage(system)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground italic mt-1 line-clamp-2">{system.why}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground italic mt-1 line-clamp-2">{system.why}</p>
                   </div>
                   <div className="flex gap-1.5 md:gap-2 flex-wrap w-full sm:w-auto" onClick={e => e.stopPropagation()}>
                     <button 

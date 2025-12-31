@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, PenTool, Cpu, RefreshCw, ChevronLeft, ChevronRight, Download, Calendar, Clock } from 'lucide-react';
+import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, PenTool, RefreshCw, ChevronLeft, ChevronRight, Download, Calendar, Clock } from 'lucide-react';
 import { DAYS } from '@/lib/constants';
 import { Tasks, Task } from '@/lib/types';
 import { formatCurrency } from '@/lib/formatters';
@@ -23,7 +23,6 @@ interface DashboardTabProps {
   onSmartSort: (day: string) => void;
   onBreakdownTask: (day: string, taskId: string | number, taskText: string) => void;
   onSmartDraft: (taskText: string) => void;
-  onLifeAudit: () => void;
   onDailyBriefing: () => void;
   onOpenModal: (type: string, data?: any, initialValue?: string) => void;
 }
@@ -74,7 +73,6 @@ export function DashboardTab({
   onSmartSort,
   onBreakdownTask,
   onSmartDraft,
-  onLifeAudit,
   onDailyBriefing,
   onOpenModal,
 }: DashboardTabProps) {
@@ -430,16 +428,6 @@ export function DashboardTab({
           onAddIdea={handleAddIdea}
           onDeleteIdea={handleDeleteIdea}
         />
-
-        {/* Life Audit */}
-        <div className="flex flex-col justify-end">
-          <button 
-            onClick={onLifeAudit} 
-            className="w-full bg-primary/10 text-primary rounded-xl p-4 hover:bg-primary/20 transition-colors flex items-center justify-center gap-2 text-sm font-bold border border-primary/20 shadow-soft"
-          >
-            <Cpu size={20} /> Run Life Audit (AI)
-          </button>
-        </div>
       </div>
     </div>
   );
