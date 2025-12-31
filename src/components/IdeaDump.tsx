@@ -1,22 +1,26 @@
 import { useState, useRef, type KeyboardEvent } from 'react';
-import { Plus, Trash2, Mic, MicOff, Lightbulb, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Mic, MicOff, Lightbulb, Loader2, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Task } from '@/lib/types';
 
 interface IdeaDumpProps {
   ideas: Task[];
   onAddIdea: (text: string) => void;
+  onEditIdea: (id: string | number, newText: string) => void;
   onDeleteIdea: (id: string | number) => void;
 }
 
-export function IdeaDump({ ideas, onAddIdea, onDeleteIdea }: IdeaDumpProps) {
+export function IdeaDump({ ideas, onAddIdea, onEditIdea, onDeleteIdea }: IdeaDumpProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [newIdea, setNewIdea] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
+  const [editingId, setEditingId] = useState<string | number | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   const startRecording = async () => {
     const SpeechRecognitionCtor =
@@ -176,14 +180,74 @@ export function IdeaDump({ ideas, onAddIdea, onDeleteIdea }: IdeaDumpProps) {
       <div className="overflow-y-auto flex-1 space-y-2">
         {ideas.map((idea, idx) => (
           <div key={`${idea.id}-${idx}`} className="bg-card/50 p-2 rounded flex items-start gap-2 group">
-            <span className="text-sm flex-1 break-words">{idea.text}</span>
-            <button
-              onClick={() => onDeleteIdea(idea.id)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-              title="Delete idea"
-            >
-              <Trash2 size={12} />
-            </button>
+            {editingId === idea.id ? (
+              <>
+                <Input
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  className="flex-1 h-7 text-sm bg-background"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (editingText.trim()) {
+                        onEditIdea(idea.id, editingText.trim());
+                        toast.success('Idea updated!');
+                      }
+                      setEditingId(null);
+                      setEditingText('');
+                    } else if (e.key === 'Escape') {
+                      setEditingId(null);
+                      setEditingText('');
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (editingText.trim()) {
+                      onEditIdea(idea.id, editingText.trim());
+                      toast.success('Idea updated!');
+                    }
+                    setEditingId(null);
+                    setEditingText('');
+                  }}
+                  className="text-success hover:text-success/80 shrink-0 p-0.5"
+                  title="Save"
+                >
+                  <Check size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setEditingText('');
+                  }}
+                  className="text-muted-foreground hover:text-destructive shrink-0 p-0.5"
+                  title="Cancel"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm flex-1 break-words">{idea.text}</span>
+                <button
+                  onClick={() => {
+                    setEditingId(idea.id);
+                    setEditingText(idea.text);
+                  }}
+                  className="text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  title="Edit idea"
+                >
+                  <Edit2 size={12} />
+                </button>
+                <button
+                  onClick={() => onDeleteIdea(idea.id)}
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  title="Delete idea"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </>
+            )}
           </div>
         ))}
         {ideas.length === 0 && (
