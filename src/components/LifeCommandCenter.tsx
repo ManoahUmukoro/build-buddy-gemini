@@ -25,6 +25,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import { DAYS } from '@/lib/constants';
 import { formatCurrency, getCurrentDayIndex } from '@/lib/formatters';
 import { extractEdgeFunctionError, showNetworkError } from '@/lib/networkErrorHandler';
 import { playReminderSound } from '@/lib/notificationSound';
@@ -121,7 +122,7 @@ export default function LifeCommandCenter() {
     const currentMinutes = now.getMinutes();
     const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
     
-    const todayKey = `d${getCurrentDayIndex()}`;
+    const todayKey = DAYS[getCurrentDayIndex()];
     const todayTasks = tasks[todayKey] || [];
     
     for (const task of todayTasks) {
@@ -313,13 +314,14 @@ export default function LifeCommandCenter() {
   };
 
   const handleDailyBriefing = async () => {
-    const todayTasks = tasks[`d${currentDayIndex}`]?.length || 0;
+    const todayKey = DAYS[currentDayIndex];
+    const todayTasksCount = tasks[todayKey]?.length || 0;
     const briefing = await ai.dailyBriefing({
-      todayTasks,
+      todayTasks: todayTasksCount,
       habitsToComplete: totalHabits - completedHabits,
       balance
     });
-    setDailyBriefing(briefing || `You have ${todayTasks} tasks today. Let's make it count!`);
+    setDailyBriefing(briefing || `You have ${todayTasksCount} tasks today. Let's make it count!`);
   };
 
   const handleAnalyzeFinances = async () => {
@@ -874,7 +876,7 @@ export default function LifeCommandCenter() {
         
         {/* Unified Floating Action Hub */}
         <FloatingActionHub 
-          todayTasks={tasks[`d${currentDayIndex}`] || []}
+          todayTasks={tasks[DAYS[currentDayIndex]] || []}
           onAddTask={(day, task) => setTasks(prev => ({
             ...prev,
             [day]: [...(prev[day] || []), task]

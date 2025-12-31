@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { 
-  Menu, X, Timer, Sparkles, MessageCircle, Loader2, ArrowRight 
+import {
+  Menu, X, Timer, Sparkles, MessageCircle, Loader2, ArrowRight
 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { FloatingFocusTimer } from '@/components/FloatingFocusTimer';
 import { useAI } from '@/hooks/useAI';
+import { DAYS } from '@/lib/constants';
 import { toast } from 'sonner';
 
 interface Task {
@@ -131,7 +132,7 @@ export function FloatingActionHub({
         if (taskText) {
           const today = new Date().getDay();
           const dayIndex = today === 0 ? 6 : today - 1;
-          const day = `d${dayIndex}`;
+          const day = DAYS[dayIndex];
           onAddTask(day, { id: Date.now(), text: taskText, done: false });
           toast.success(`Task added: "${taskText}"`);
           setAIInput('');
