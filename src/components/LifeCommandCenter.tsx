@@ -43,6 +43,9 @@ export default function LifeCommandCenter() {
   const [taskTime, setTaskTime] = useState('');
   const [taskReminderEnabled, setTaskReminderEnabled] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Wizard step for goal creation: 1 = goal info, 2 = add system
+  const [goalWizardStep, setGoalWizardStep] = useState<1 | 2>(1);
+  const [pendingGoalId, setPendingGoalId] = useState<number | null>(null);
   
   // Supabase Data
   const {
@@ -246,6 +249,8 @@ export default function LifeCommandCenter() {
     setInputWhy('');
     setTaskTime('');
     setTaskReminderEnabled(false);
+    setGoalWizardStep(1);
+    setPendingGoalId(null);
   };
 
   // AI Handlers
@@ -513,8 +518,8 @@ export default function LifeCommandCenter() {
     const isDeleteAction = modalConfig.type?.startsWith('delete');
     if (!inputValue.trim() && !isDeleteAction) return;
     
-    // Validate goals/systems require both fields
-    if (modalConfig.type === 'addSystem' && (!inputValue.trim() || !inputWhy.trim())) {
+    // Validate goals/systems require both fields (only on step 1)
+    if (modalConfig.type === 'addSystem' && goalWizardStep === 1 && (!inputValue.trim() || !inputWhy.trim())) {
       toast.error('Goal name and "Your Why" are both required');
       return;
     }
@@ -567,14 +572,27 @@ export default function LifeCommandCenter() {
         closeModal();
         return;
       case 'addSystem':
-        const newSystemId = Date.now();
-        await setSystems(prev => [...prev, { id: newSystemId, goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
-        // 2-step flow: After creating goal, prompt to add first system
-        closeModal();
-        setTimeout(() => {
-          openModal('addHabitToSystem', newSystemId);
-        }, 300);
-        return;
+        if (goalWizardStep === 1) {
+          // Step 1: Save goal info and move to step 2
+          const newSystemId = Date.now();
+          await setSystems(prev => [...prev, { id: newSystemId, goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
+          setPendingGoalId(newSystemId);
+          setInputValue('');
+          setGoalWizardStep(2);
+          setIsModalSubmitting(false);
+          return;
+        } else {
+          // Step 2: Add the system to the pending goal
+          if (pendingGoalId && inputValue.trim()) {
+            await setSystems(prev => prev.map(s => String(s.id) === String(pendingGoalId) 
+              ? { ...s, habits: [...s.habits, { id: Date.now(), name: inputValue, completed: {} }] } 
+              : s
+            ));
+          }
+          setGoalWizardStep(1);
+          setPendingGoalId(null);
+        }
+        break;
       case 'editSystem':
         await setSystems(prev => prev.map(s => String(s.id) === String(modalConfig.data) ? { ...s, goal: inputValue, why: inputWhy } : s));
         break;
@@ -789,7 +807,6 @@ export default function LifeCommandCenter() {
                 onSmartSort={handleSmartSort}
                 onBreakdownTask={handleBreakdownTask}
                 onSmartDraft={handleSmartDraft}
-                onLifeAudit={handleLifeAudit}
                 onDailyBriefing={handleDailyBriefing}
                 onOpenModal={openModal}
               />
@@ -949,7 +966,55 @@ export default function LifeCommandCenter() {
               </div>
             ) : (
               <form onSubmit={handleModalSubmit} className="space-y-4">
-                {(modalConfig.type === 'editSystem' || modalConfig.type === 'addSystem') ? (
+                {modalConfig.type === 'addSystem' && goalWizardStep === 1 ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">1</div>
+                      <div className="flex-1 h-1 bg-muted rounded"></div>
+                      <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-sm">2</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Goal Name *</label>
+                      <input 
+                        autoFocus
+                        className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-lg text-card-foreground" 
+                        placeholder="e.g. Become a better runner" 
+                        value={inputValue} 
+                        onChange={(e) => setInputValue(e.target.value)} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Your "Why" *</label>
+                      <input 
+                        className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-card-foreground" 
+                        placeholder="e.g. To be healthy for my kids" 
+                        value={inputWhy} 
+                        onChange={(e) => setInputWhy(e.target.value)} 
+                      />
+                      <p className="text-xs text-muted-foreground">Both fields are required. Your "why" keeps you motivated.</p>
+                    </div>
+                  </>
+                ) : modalConfig.type === 'addSystem' && goalWizardStep === 2 ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-success text-success-foreground flex items-center justify-center font-bold text-sm">✓</div>
+                      <div className="flex-1 h-1 bg-primary rounded"></div>
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">2</div>
+                    </div>
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Great! Now add your first <strong>System</strong> — a repeatable action that moves you toward your goal.
+                      </p>
+                      <input 
+                        autoFocus
+                        className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-lg text-card-foreground placeholder:text-muted-foreground" 
+                        placeholder="e.g. Run 3 times per week" 
+                        value={inputValue} 
+                        onChange={(e) => setInputValue(e.target.value)} 
+                      />
+                    </div>
+                  </>
+                ) : modalConfig.type === 'editSystem' ? (
                   <>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Goal Name *</label>
@@ -1025,7 +1090,7 @@ export default function LifeCommandCenter() {
                     className="px-6 py-2.5 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 font-bold shadow-soft flex items-center gap-2 transition-all active:scale-95"
                   >
                     {isGenerating && <Loader2 className="animate-spin" size={18} />}
-                    {isGenerating ? "Thinking..." : "Save"}
+                    {isGenerating ? "Thinking..." : (modalConfig.type === 'addSystem' && goalWizardStep === 1) ? "Next →" : (modalConfig.type === 'addSystem' && goalWizardStep === 2) ? "Done" : "Save"}
                   </button>
                 </div>
               </form>
