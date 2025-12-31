@@ -16,6 +16,8 @@ import { FloatingActionHub } from '@/components/FloatingActionHub';
 import { ModuleDisabled } from '@/components/ModuleDisabled';
 import { SavingsGoalModal } from '@/components/SavingsGoalModal';
 import { ReceiptReviewModal } from '@/components/ReceiptReviewModal';
+import { TaskInputModal } from '@/components/TaskInputModal';
+import { DailyPlanAssistant } from '@/components/DailyPlanAssistant';
 import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem, SavingsGoal } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
@@ -26,6 +28,7 @@ import { useUserSettings } from '@/hooks/useUserSettings';
 import { formatCurrency, getCurrentDayIndex } from '@/lib/formatters';
 import { extractEdgeFunctionError, showNetworkError } from '@/lib/networkErrorHandler';
 import { playReminderSound } from '@/lib/notificationSound';
+import { scheduleTaskReminder, cancelTaskReminder } from '@/lib/capacitorHelpers';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -36,6 +39,8 @@ export default function LifeCommandCenter() {
   const [modalConfig, setModalConfig] = useState<ModalConfig>({ isOpen: false, type: null, data: null });
   const [inputValue, setInputValue] = useState('');
   const [inputWhy, setInputWhy] = useState('');
+  const [taskTime, setTaskTime] = useState('');
+  const [taskReminderEnabled, setTaskReminderEnabled] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
   // Supabase Data
@@ -238,6 +243,8 @@ export default function LifeCommandCenter() {
     setModalConfig({ isOpen: false, type: null, data: null });
     setInputValue('');
     setInputWhy('');
+    setTaskTime('');
+    setTaskReminderEnabled(false);
   };
 
   // AI Handlers
@@ -514,10 +521,24 @@ export default function LifeCommandCenter() {
 
     switch (modalConfig.type) {
       case 'addTask':
+        const newTask = { 
+          id: Date.now(), 
+          text: inputValue, 
+          done: false,
+          time: taskTime || undefined,
+          reminderEnabled: taskReminderEnabled
+        };
         await setTasks(prev => ({
           ...prev,
-          [modalConfig.data]: [...(prev[modalConfig.data] || []), { id: Date.now(), text: inputValue, done: false }]
+          [modalConfig.data]: [...(prev[modalConfig.data] || []), newTask]
         }));
+        // Schedule native reminder if enabled
+        if (taskReminderEnabled && taskTime) {
+          const today = new Date();
+          const [hours, mins] = taskTime.split(':').map(Number);
+          const reminderDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, mins);
+          scheduleTaskReminder(String(newTask.id), inputValue, reminderDate);
+        }
         break;
       case 'editTask':
         const { day, taskId } = modalConfig.data;
@@ -695,23 +716,23 @@ export default function LifeCommandCenter() {
   // Get modal title
   const getModalTitle = () => {
     const typeMap: { [key: string]: string } = {
-      generateSchedule: "AI Magic",
-      generateSystems: "AI Magic",
+      generateSchedule: "Daily Plan Assistant",
+      generateSystems: "AI Systems",
       lifeAudit: "Life Audit",
       smartDraft: "Smart Draft",
       setBudget: "Set Budget",
       deleteTransaction: "Delete Record",
-      deleteHabit: "Delete Habit",
+      deleteHabit: "Delete System",
       deleteSystem: "Delete Goal",
       deleteSubscription: "Delete Subscription",
       editSystem: "Edit Goal",
-      editHabit: "Edit Habit",
+      editHabit: "Edit System",
       addSubscription: "Add Subscription",
       editSubscription: "Edit Fixed Cost",
       addTask: "Add Task",
       editTask: "Edit Task",
       addSystem: "New Goal",
-      addHabitToSystem: "Add Habit",
+      addHabitToSystem: "Add System",
       addCategory: "Add Category",
     };
     return typeMap[modalConfig.type || ''] || "Input Required";
@@ -940,13 +961,25 @@ export default function LifeCommandCenter() {
                       />
                     </div>
                   </>
-                ) : modalConfig.type === 'generateSystems' ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground bg-primary/10 p-3 rounded-lg border border-primary/20">
-                      <Sparkles size={14} className="inline mr-1 text-primary" />
-                      AI will analyze your goal and create a custom list of habits for you.
-                    </p>
-                  </div>
+                ) : modalConfig.type === 'generateSchedule' ? (
+                  <DailyPlanAssistant
+                    value={inputValue}
+                    onChange={setInputValue}
+                    isGenerating={isGenerating}
+                    onGenerate={handleModalSubmit}
+                    onCancel={closeModal}
+                  />
+                ) : (modalConfig.type === 'addTask' || modalConfig.type === 'editTask') ? (
+                  <TaskInputModal
+                    value={inputValue}
+                    onChange={setInputValue}
+                    time={taskTime}
+                    onTimeChange={setTaskTime}
+                    reminderEnabled={taskReminderEnabled}
+                    onReminderChange={setTaskReminderEnabled}
+                    isGenerating={isGenerating}
+                    showTimeReminder={modalConfig.type === 'addTask'}
+                  />
                 ) : (
                   <input 
                     autoFocus 

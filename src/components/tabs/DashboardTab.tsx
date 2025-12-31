@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, Wand2, PenTool, Cpu, RefreshCw, ChevronLeft, ChevronRight, Download, Calendar } from 'lucide-react';
+import { Plus, Sparkles, ListOrdered, Loader2, Trash2, Edit2, PenTool, Cpu, RefreshCw, ChevronLeft, ChevronRight, Download, Calendar, Clock } from 'lucide-react';
 import { DAYS } from '@/lib/constants';
 import { Tasks, Task } from '@/lib/types';
 import { formatCurrency } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { IdeaDump } from '@/components/IdeaDump';
 import { toast } from 'sonner';
 import { format, startOfWeek, addDays, subWeeks, addWeeks, isSameDay } from 'date-fns';
 
@@ -51,6 +52,13 @@ function getWeekLabel(baseDate: Date): string {
   if (isSameDay(nextMonday, targetMonday)) return 'Next Week';
   
   return `${format(targetMonday, 'MMM d')} - ${format(addDays(targetMonday, 6), 'MMM d')}`;
+}
+
+// Get exact date range label for downloads (always show exact dates)
+function getExactWeekLabel(baseDate: Date): string {
+  const monday = startOfWeek(baseDate, { weekStartsOn: 1 });
+  const sunday = addDays(monday, 6);
+  return `${format(monday, 'MMM d, yyyy')} - ${format(sunday, 'MMM d, yyyy')}`;
 }
 
 export function DashboardTab({
@@ -127,6 +135,7 @@ export function DashboardTab({
 
   const downloadWeeklySummary = async () => {
     const stats = calculateWeeklyStats();
+    const exactDateRange = getExactWeekLabel(selectedDate);
     
     const canvas = document.createElement('canvas');
     canvas.width = 800;
@@ -138,13 +147,16 @@ export function DashboardTab({
       return;
     }
 
-    // Background
+    // OLED Black background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 800, 500);
+
+    // Gradient overlay for depth
     const gradient = ctx.createLinearGradient(0, 0, 800, 500);
-    gradient.addColorStop(0, '#1C1C1E');
-    gradient.addColorStop(1, '#000000');
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.05)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = gradient;
-    ctx.roundRect(0, 0, 800, 500, 20);
-    ctx.fill();
+    ctx.fillRect(0, 0, 800, 500);
 
     // Border
     ctx.strokeStyle = '#22C55E';
@@ -154,23 +166,23 @@ export function DashboardTab({
 
     // Title
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('📊 Weekly Productivity Summary', 400, 50);
 
-    // Week label
-    ctx.fillStyle = '#9CA3AF';
-    ctx.font = '18px system-ui, -apple-system, sans-serif';
-    ctx.fillText(getWeekLabel(selectedDate), 400, 80);
+    // Exact date range (always show exact dates)
+    ctx.fillStyle = '#22C55E';
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    ctx.fillText(exactDateRange, 400, 80);
 
     // Stats
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`${stats.percentage}%`, 400, 180);
+    ctx.fillText(`${stats.percentage}%`, 400, 170);
 
     ctx.fillStyle = '#22C55E';
-    ctx.font = '20px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`${stats.completed} of ${stats.total} tasks completed`, 400, 220);
+    ctx.font = '18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`${stats.completed} of ${stats.total} tasks completed`, 400, 205);
 
     // Day breakdown
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -187,15 +199,17 @@ export function DashboardTab({
       const pct = total > 0 ? completed / total : 0;
       
       // Bar background
-      ctx.fillStyle = '#374151';
+      ctx.fillStyle = '#1C1C1E';
+      ctx.beginPath();
       ctx.roundRect(x - 20, y - 80, 40, 100, 8);
       ctx.fill();
       
       // Bar fill
       const fillHeight = pct * 80;
-      ctx.fillStyle = pct === 1 ? '#22C55E' : pct > 0.5 ? '#F59E0B' : '#EF4444';
+      ctx.fillStyle = pct === 1 ? '#22C55E' : pct > 0.5 ? '#F59E0B' : pct > 0 ? '#EF4444' : '#374151';
       if (fillHeight > 0) {
-        ctx.roundRect(x - 20, y - fillHeight, 40, fillHeight + 20, 8);
+        ctx.beginPath();
+        ctx.roundRect(x - 18, y - fillHeight + 18, 36, fillHeight, 6);
         ctx.fill();
       }
       
@@ -203,27 +217,54 @@ export function DashboardTab({
       ctx.fillStyle = '#9CA3AF';
       ctx.font = '14px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(day, x, y + 20);
+      ctx.fillText(day, x, y + 25);
+      
+      // Date
+      ctx.fillStyle = '#6B7280';
+      ctx.font = '11px system-ui, -apple-system, sans-serif';
+      ctx.fillText(format(date, 'M/d'), x, y + 40);
       
       // Count
       ctx.fillStyle = '#FFFFFF';
       ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-      ctx.fillText(`${completed}/${total}`, x, y + 40);
+      ctx.fillText(`${completed}/${total}`, x, y + 58);
     });
 
-    // Branding
-    ctx.fillStyle = '#6B7280';
+    // Focus time placeholder
+    ctx.fillStyle = '#9CA3AF';
     ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Focus Sessions: Coming Soon', 400, 420);
+
+    // Branding
+    ctx.fillStyle = '#4B5563';
+    ctx.font = '12px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('LifeOS', 770, 480);
+    ctx.fillText('LifeOS', 770, 475);
 
     // Download
     const link = document.createElement('a');
-    link.download = `weekly_summary_${format(selectedDate, 'yyyy-MM-dd')}.png`;
+    const monday = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    link.download = `weekly_summary_${format(monday, 'yyyy-MM-dd')}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
     
     toast.success('Weekly summary downloaded!');
+  };
+
+  // Idea Dump handlers
+  const handleAddIdea = (text: string) => {
+    setTasks(prev => ({
+      ...prev,
+      'IdeaDump': [...(prev['IdeaDump'] || []), { id: Date.now(), text, done: false }]
+    }));
+  };
+
+  const handleDeleteIdea = (id: string | number) => {
+    setTasks(prev => ({
+      ...prev,
+      'IdeaDump': prev['IdeaDump']?.filter(x => String(x.id) !== String(id)) || []
+    }));
   };
 
   return (
@@ -353,12 +394,14 @@ export function DashboardTab({
                     onClick={() => onOpenModal('generateSchedule', taskKey)} 
                     className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
                     disabled={isPastWeek && !isCurrentWeek}
+                    title="Daily Plan Assistant"
                   >
                     <Sparkles size={16} />
                   </button>
                   <button 
                     onClick={() => onOpenModal('addTask', taskKey)} 
                     className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
+                    title="Add Task"
                   >
                     <Plus size={16} />
                   </button>
@@ -370,11 +413,9 @@ export function DashboardTab({
                     key={`${task.id}-${taskIdx}`} 
                     task={task} 
                     day={taskKey}
-                    breakingDownTask={breakingDownTask}
                     onToggle={() => toggleTaskDone(taskKey, task.id)}
                     onDelete={() => deleteTask(taskKey, task.id)}
                     onEdit={() => onOpenModal('editTask', { day: taskKey, taskId: task.id }, task.text)}
-                    onBreakdown={() => onBreakdownTask(taskKey, task.id, task.text)}
                     onSmartDraft={() => onSmartDraft(task.text)}
                   />
                 ))}
@@ -383,29 +424,12 @@ export function DashboardTab({
           );
         })}
         
-        {/* Brain Dump */}
-        <div className="bg-warning/10 p-4 rounded-xl shadow-soft border border-warning/20 flex flex-col h-64">
-          <h3 className="font-bold text-warning flex items-center gap-2 mb-3">
-            🧠 Brain Dump
-            <button onClick={() => onOpenModal('addTask', 'BrainDump')} className="bg-warning/20 p-1 rounded-full">
-              <Plus size={16} />
-            </button>
-          </h3>
-          <div className="overflow-y-auto flex-1 space-y-2">
-            {(tasks['BrainDump'] || []).map((t, idx) => (
-              <div key={`${t.id}-${idx}`} className="bg-card/50 p-2 rounded flex items-center">
-                <span className="text-sm flex-1">{t.text}</span>
-                <button 
-                  onClick={() => setTasks(prev => ({ ...prev, 'BrainDump': prev['BrainDump']?.filter(x => x.id !== t.id) || [] }))} 
-                  className="text-muted-foreground"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
+        {/* Idea Dump (formerly Brain Dump) */}
+        <IdeaDump 
+          ideas={tasks['IdeaDump'] || tasks['BrainDump'] || []}
+          onAddIdea={handleAddIdea}
+          onDeleteIdea={handleDeleteIdea}
+        />
 
         {/* Life Audit */}
         <div className="flex flex-col justify-end">
@@ -424,15 +448,13 @@ export function DashboardTab({
 interface TaskItemProps {
   task: Task;
   day: string;
-  breakingDownTask: string | number | null;
   onToggle: () => void;
   onDelete: () => void;
   onEdit: () => void;
-  onBreakdown: () => void;
   onSmartDraft: () => void;
 }
 
-function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onBreakdown, onSmartDraft }: TaskItemProps) {
+function TaskItem({ task, day, onToggle, onDelete, onEdit, onSmartDraft }: TaskItemProps) {
   const taskText = task.text || '';
   const isSubtask = taskText.startsWith('↳');
   const showDraftButton = ['email', 'message', 'write', 'contact'].some(keyword => 
@@ -447,32 +469,28 @@ function TaskItem({ task, day, breakingDownTask, onToggle, onDelete, onEdit, onB
         onChange={onToggle} 
         className="mt-1 mr-2 cursor-pointer w-4 h-4 accent-primary"
       />
-      <span className={`text-sm flex-1 break-words ${task.done ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
-        {taskText}
-      </span>
+      <div className="flex-1 min-w-0">
+        <span className={`text-sm break-words ${task.done ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
+          {taskText}
+        </span>
+        {task.time && (
+          <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+            <Clock size={10} />
+            <span>{task.time}</span>
+          </div>
+        )}
+      </div>
       
       <div className="flex opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-muted pl-2 items-center bg-opacity-90 rounded-lg backdrop-blur-sm">
-        {!isSubtask && (
-          <>
-            {showDraftButton && (
-              <button onClick={onSmartDraft} className="text-primary hover:text-primary/80 mr-1 p-1" title="Smart Draft">
-                <PenTool size={12} />
-              </button>
-            )}
-            <button 
-              onClick={onBreakdown} 
-              className="text-primary/70 hover:text-primary mr-1 p-1" 
-              disabled={String(breakingDownTask) === String(task.id)} 
-              title="AI Breakdown"
-            >
-              {String(breakingDownTask) === String(task.id) ? <Loader2 className="animate-spin" size={12} /> : <Wand2 size={12} />}
-            </button>
-          </>
+        {!isSubtask && showDraftButton && (
+          <button onClick={onSmartDraft} className="text-primary hover:text-primary/80 mr-1 p-1" title="Smart Draft">
+            <PenTool size={12} />
+          </button>
         )}
-        <button onClick={onEdit} className="text-muted-foreground hover:text-primary mr-1 p-1">
+        <button onClick={onEdit} className="text-muted-foreground hover:text-primary mr-1 p-1" title="Edit">
           <Edit2 size={12} />
         </button>
-        <button onClick={onDelete} className="text-muted-foreground hover:text-destructive p-1">
+        <button onClick={onDelete} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
           <Trash2 size={12} />
         </button>
       </div>

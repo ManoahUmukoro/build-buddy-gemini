@@ -3,6 +3,7 @@ export interface Task {
   text: string;
   done: boolean;
   time?: string;
+  reminderEnabled?: boolean;
   alerted?: boolean;
 }
 
