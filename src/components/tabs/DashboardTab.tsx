@@ -265,6 +265,13 @@ export function DashboardTab({
     }));
   };
 
+  const handleEditIdea = (id: string | number, newText: string) => {
+    setTasks(prev => ({
+      ...prev,
+      'IdeaDump': prev['IdeaDump']?.map(x => String(x.id) === String(id) ? { ...x, text: newText } : x) || []
+    }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Command Center Snapshot */}
@@ -426,6 +433,7 @@ export function DashboardTab({
         <IdeaDump 
           ideas={tasks['IdeaDump'] || tasks['BrainDump'] || []}
           onAddIdea={handleAddIdea}
+          onEditIdea={handleEditIdea}
           onDeleteIdea={handleDeleteIdea}
         />
       </div>
