@@ -567,8 +567,14 @@ export default function LifeCommandCenter() {
         closeModal();
         return;
       case 'addSystem':
-        await setSystems(prev => [...prev, { id: Date.now(), goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
-        break;
+        const newSystemId = Date.now();
+        await setSystems(prev => [...prev, { id: newSystemId, goal: inputValue, why: inputWhy || "To improve my life", habits: [] }]);
+        // 2-step flow: After creating goal, prompt to add first system
+        closeModal();
+        setTimeout(() => {
+          openModal('addHabitToSystem', newSystemId);
+        }, 300);
+        return;
       case 'editSystem':
         await setSystems(prev => prev.map(s => String(s.id) === String(modalConfig.data) ? { ...s, goal: inputValue, why: inputWhy } : s));
         break;
@@ -736,6 +742,7 @@ export default function LifeCommandCenter() {
       addSystem: "New Goal",
       addHabitToSystem: "Add System",
       addCategory: "Add Category",
+      promptAddFirstSystem: "Add Your First System",
     };
     return typeMap[modalConfig.type || ''] || "Input Required";
   };
@@ -945,24 +952,39 @@ export default function LifeCommandCenter() {
                 {(modalConfig.type === 'editSystem' || modalConfig.type === 'addSystem') ? (
                   <>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase">Goal Name</label>
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Goal Name *</label>
                       <input 
+                        autoFocus
                         className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-lg text-card-foreground" 
-                        placeholder="e.g. Run a Marathon" 
+                        placeholder="e.g. Become a better runner" 
                         value={inputValue} 
                         onChange={(e) => setInputValue(e.target.value)} 
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase">Your "Why"</label>
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Your "Why" *</label>
                       <input 
                         className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-card-foreground" 
                         placeholder="e.g. To be healthy for my kids" 
                         value={inputWhy} 
                         onChange={(e) => setInputWhy(e.target.value)} 
                       />
+                      <p className="text-xs text-muted-foreground">Both fields are required. Your "why" keeps you motivated.</p>
                     </div>
                   </>
+                ) : modalConfig.type === 'addHabitToSystem' ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      A <strong>System</strong> is a repeatable action that moves you toward your goal. What will you do regularly?
+                    </p>
+                    <input 
+                      autoFocus
+                      className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-lg text-card-foreground placeholder:text-muted-foreground" 
+                      placeholder="e.g. Run 3 times per week" 
+                      value={inputValue} 
+                      onChange={(e) => setInputValue(e.target.value)} 
+                    />
+                  </div>
                 ) : modalConfig.type === 'generateSchedule' ? (
                   <DailyPlanAssistant
                     value={inputValue}
@@ -986,7 +1008,7 @@ export default function LifeCommandCenter() {
                   <input 
                     autoFocus 
                     className="w-full p-4 bg-muted border-0 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-lg text-card-foreground placeholder:text-muted-foreground" 
-                    placeholder={modalConfig.type === 'setBudget' ? "Enter limit amount" : "Type here..."} 
+                    placeholder={modalConfig.type === 'setBudget' ? "Enter limit amount" : modalConfig.type === 'editHabit' ? "System name..." : "Type here..."} 
                     value={inputValue} 
                     onChange={(e) => setInputValue(e.target.value)} 
                     disabled={isGenerating} 

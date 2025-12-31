@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Target, Sparkles, Trash2, Edit2, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Plus, Target, Sparkles, Trash2, Edit2, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react';
 import { System } from '@/lib/types';
 import { DAYS } from '@/lib/constants';
 import { getCurrentDayIndex } from '@/lib/formatters';
@@ -9,6 +9,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
 interface SystemsTabProps {
@@ -199,12 +204,29 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
     <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
       {/* Header with Week Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-3 md:p-4 rounded-xl shadow-soft">
-        <div>
-          <h3 className="font-bold text-card-foreground text-base md:text-lg">Systems & Goals</h3>
-          <p className="text-xs text-muted-foreground">Identity based habits.</p>
+        <div className="flex items-start gap-2">
+          <div>
+            <h3 className="font-bold text-card-foreground text-base md:text-lg flex items-center gap-2">
+              Systems & Goals
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-muted-foreground hover:text-primary transition-colors">
+                    <Info size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px]">
+                  <p className="text-sm">
+                    <strong>Systems</strong> are repeatable actions that help you achieve your goals. 
+                    Focus on building consistent systems rather than chasing outcomes.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </h3>
+            <p className="text-xs text-muted-foreground">Identity-based systems for lasting change.</p>
+          </div>
         </div>
         <button 
-          onClick={() => onOpenModal('addSystem', null, "I am a...")}
+          onClick={() => onOpenModal('addSystem', null, "")}
           className="bg-secondary text-secondary-foreground px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm hover:bg-secondary/80 flex items-center gap-1.5 md:gap-2 transition-colors w-full sm:w-auto justify-center"
         >
           <Target size={14} className="md:w-4 md:h-4" /> New Goal
@@ -290,17 +312,24 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
                       <Edit2 size={12} className="md:w-[14px] md:h-[14px]" />
                     </button>
                     <button 
-                      onClick={() => onOpenModal('generateSystems', { systemId: system.id, goalName: system.goal })} 
+                      onClick={() => onOpenModal('generateSystems', { systemId: system.id, goalName: system.goal, goalWhy: system.why })} 
                       className="text-primary hover:bg-primary/10 px-2 md:px-3 py-1 rounded text-xs md:text-sm font-bold border border-primary/20 flex items-center gap-1 flex-1 sm:flex-initial justify-center"
                     >
                       <Sparkles size={12} className="md:w-[14px] md:h-[14px]" /> AI
                     </button>
-                    <button 
-                      onClick={() => onOpenModal('addHabitToSystem', system.id)} 
-                      className="text-primary hover:bg-primary/10 px-2 md:px-3 py-1 rounded text-xs md:text-sm font-bold border border-primary/20 flex items-center gap-1 flex-1 sm:flex-initial justify-center"
-                    >
-                      <Plus size={12} className="md:w-[14px] md:h-[14px]" /> Add
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={() => onOpenModal('addHabitToSystem', system.id)} 
+                          className="text-primary hover:bg-primary/10 px-2 md:px-3 py-1 rounded text-xs md:text-sm font-bold border border-primary/20 flex items-center gap-1 flex-1 sm:flex-initial justify-center"
+                        >
+                          <Plus size={12} className="md:w-[14px] md:h-[14px]" /> System
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add a repeatable action to this goal</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <button 
                       onClick={() => onOpenModal('deleteSystem', system.id)} 
                       className="text-destructive/60 hover:bg-destructive/10 px-2 py-1 rounded"
@@ -316,7 +345,15 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
               {/* Mobile Card View */}
               <div className="block sm:hidden p-3 space-y-3">
                 {system.habits.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">No habits yet. Add one to get started!</p>
+                  <div className="text-center py-6 space-y-3">
+                    <p className="text-xs text-muted-foreground">No systems yet. Add your first repeatable action!</p>
+                    <button
+                      onClick={() => onOpenModal('addHabitToSystem', system.id)}
+                      className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={16} /> Add First System
+                    </button>
+                  </div>
                 ) : (
                   system.habits.map((h, hIdx) => (
                     <div key={`${h.id}-${hIdx}`} className="bg-muted/50 rounded-lg p-3 space-y-2">
@@ -370,68 +407,80 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
 
               {/* Desktop/Tablet Table View */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full" style={{ minWidth: '500px' }}>
-                  <thead className="bg-muted text-[10px] md:text-xs text-muted-foreground font-bold uppercase">
-                    <tr>
-                      <th className="p-2 md:p-3 text-left" style={{ width: '40%' }}>System / Action</th>
-                      {DAYS.map((d, i) => {
-                        const isToday = weekOffset === 0 && i === currentDayIndex;
-                        return (
-                          <th 
-                            key={d} 
-                            className={`p-2 md:p-3 text-center ${isToday ? 'bg-primary/10 text-primary' : ''}`}
-                            style={{ width: `${60 / 8}%` }}
-                          >
-                            {d.slice(0, 3)}
-                          </th>
-                        );
-                      })}
-                      <th className="p-2 md:p-3" style={{ width: '5%' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {system.habits.map((h, hIdx) => (
-                      <tr key={`${h.id}-${hIdx}`}>
-                        <td className="p-2 md:p-3 text-xs md:text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="break-words line-clamp-2">{h.name}</span>
-                            <button 
-                              onClick={() => onOpenModal('editHabit', { systemId: system.id, habitId: h.id }, h.name)} 
-                              className="text-muted-foreground/50 hover:text-primary p-1 hover:bg-muted rounded flex-shrink-0"
-                            >
-                              <Edit2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                        {DAYS.map((_, i) => {
+                {system.habits.length === 0 ? (
+                  <div className="text-center py-8 space-y-3">
+                    <p className="text-sm text-muted-foreground">No systems yet. Add your first repeatable action!</p>
+                    <button
+                      onClick={() => onOpenModal('addHabitToSystem', system.id)}
+                      className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={16} /> Add First System
+                    </button>
+                  </div>
+                ) : (
+                  <table className="w-full" style={{ minWidth: '500px' }}>
+                    <thead className="bg-muted text-[10px] md:text-xs text-muted-foreground font-bold uppercase">
+                      <tr>
+                        <th className="p-2 md:p-3 text-left" style={{ width: '40%' }}>System / Action</th>
+                        {DAYS.map((d, i) => {
                           const isToday = weekOffset === 0 && i === currentDayIndex;
-                          const dateKey = weekDates[i];
                           return (
-                            <td key={i} className={`p-2 md:p-3 text-center ${isToday ? 'bg-primary/5' : ''}`}>
-                              <label className="inline-flex items-center justify-center cursor-pointer">
-                                <input 
-                                  type="checkbox"
-                                  checked={h.completed[dateKey] || false}
-                                  onChange={() => toggleHabit(system.id, h.id, i)}
-                                  disabled={weekOffset > 0}
-                                  className={`w-5 h-5 md:w-6 md:h-6 rounded border-2 border-border bg-card checked:bg-success checked:border-success cursor-pointer accent-success ${weekOffset > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                />
-                              </label>
-                            </td>
+                            <th 
+                              key={d} 
+                              className={`p-2 md:p-3 text-center ${isToday ? 'bg-primary/10 text-primary' : ''}`}
+                              style={{ width: `${60 / 8}%` }}
+                            >
+                              {d.slice(0, 3)}
+                            </th>
                           );
                         })}
-                        <td className="p-2 md:p-3">
-                          <button 
-                            onClick={() => onOpenModal('deleteHabit', { systemId: system.id, habitId: h.id })} 
-                            className="text-destructive/60"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
+                        <th className="p-2 md:p-3" style={{ width: '5%' }}></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {system.habits.map((h, hIdx) => (
+                        <tr key={`${h.id}-${hIdx}`}>
+                          <td className="p-2 md:p-3 text-xs md:text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="break-words line-clamp-2">{h.name}</span>
+                              <button 
+                                onClick={() => onOpenModal('editHabit', { systemId: system.id, habitId: h.id }, h.name)} 
+                                className="text-muted-foreground/50 hover:text-primary p-1 hover:bg-muted rounded flex-shrink-0"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                          {DAYS.map((_, i) => {
+                            const isToday = weekOffset === 0 && i === currentDayIndex;
+                            const dateKey = weekDates[i];
+                            return (
+                              <td key={i} className={`p-2 md:p-3 text-center ${isToday ? 'bg-primary/5' : ''}`}>
+                                <label className="inline-flex items-center justify-center cursor-pointer">
+                                  <input 
+                                    type="checkbox"
+                                    checked={h.completed[dateKey] || false}
+                                    onChange={() => toggleHabit(system.id, h.id, i)}
+                                    disabled={weekOffset > 0}
+                                    className={`w-5 h-5 md:w-6 md:h-6 rounded border-2 border-border bg-card checked:bg-success checked:border-success cursor-pointer accent-success ${weekOffset > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  />
+                                </label>
+                              </td>
+                            );
+                          })}
+                          <td className="p-2 md:p-3">
+                            <button 
+                              onClick={() => onOpenModal('deleteHabit', { systemId: system.id, habitId: h.id })} 
+                              className="text-destructive/60"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </CollapsibleContent>
           </div>
