@@ -230,4 +230,36 @@
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
   }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  /* Hide scrollbar utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch target optimization */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    background: hsl(var(--background) / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Tap highlight removal for mobile */
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
 }

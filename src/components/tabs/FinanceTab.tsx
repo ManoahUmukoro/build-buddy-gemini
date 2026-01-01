@@ -642,16 +642,16 @@ export function FinanceTab({
               {/* Spending Chart */}
               <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
                 <h3 className="font-bold text-card-foreground mb-2 text-sm md:text-base">Spending Chart</h3>
-                <div className="h-36 md:h-40 w-full mb-3 md:mb-4 overflow-x-auto scrollbar-hide">
-                  <div className="min-w-[280px] h-full">
+                <div className="py-4 md:py-6 w-full overflow-x-auto scrollbar-hide">
+                  <div className="min-w-[280px] h-48 md:h-52">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie 
                           data={expenseData} 
                           cx="50%" 
                           cy="50%" 
-                          innerRadius={35} 
-                          outerRadius={55} 
+                          innerRadius={40} 
+                          outerRadius={65} 
                           paddingAngle={5} 
                           dataKey="value"
                         >
