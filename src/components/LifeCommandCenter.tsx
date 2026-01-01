@@ -227,9 +227,10 @@ export default function LifeCommandCenter() {
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear() && t.type === 'income';
   }).reduce((acc, t) => acc + t.amount, 0);
   
-  // Safe Daily Spend formula: [Balance - Fixed Expenses - Savings Goals] / Days Remaining
-  const totalSavingsGoals = savingsGoals.reduce((acc, g) => acc + (g.target - g.current), 0);
-  const remainingBudget = balance - totalFixedCosts - Math.max(0, totalSavingsGoals);
+  // Safe Daily Spend formula: [Current Month Balance - Fixed Expenses - Savings Goals] / Days Remaining
+  const currentMonthBalance = currentMonthIncome - currentMonthExpenses;
+  const totalSavingsGoals = savingsGoals.reduce((acc, g) => acc + Math.max(0, g.target - g.current), 0);
+  const remainingBudget = currentMonthBalance - totalFixedCosts - totalSavingsGoals;
   const safeDailySpend = Math.max(0, remainingBudget / daysLeft);
 
   const expenseData = categories.map(cat => ({
