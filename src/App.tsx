@@ -8,6 +8,7 @@ import { UserSettingsProvider } from "@/hooks/useUserSettings";
 import { AdminRoute } from "@/components/admin/AdminRoute";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Pricing from "./pages/Pricing";
@@ -32,6 +33,7 @@ const App = () => (
           <Sonner />
           <OfflineIndicator />
           <MaintenanceBanner />
+          <PWAInstallPrompt />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
