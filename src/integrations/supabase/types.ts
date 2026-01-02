@@ -98,6 +98,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_accounts: {
+        Row: {
+          account_type: string
+          bank_name: string
+          created_at: string
+          currency: string
+          id: string
+          is_primary: boolean
+          opening_balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string
+          bank_name: string
+          created_at?: string
+          currency?: string
+          id?: string
+          is_primary?: boolean
+          opening_balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string
+          bank_name?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          is_primary?: boolean
+          opening_balance?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number
@@ -547,6 +583,39 @@ export type Database = {
         }
         Relationships: []
       }
+      support_tickets: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          id: string
+          message: string
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       systems: {
         Row: {
           created_at: string
@@ -624,35 +693,52 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
+          bank_account_id: string | null
           category: string
           created_at: string
           date: string
           description: string | null
+          external_reference: string | null
           id: string
+          source: string
           type: string
           user_id: string
         }
         Insert: {
           amount: number
+          bank_account_id?: string | null
           category: string
           created_at?: string
           date: string
           description?: string | null
+          external_reference?: string | null
           id?: string
+          source?: string
           type: string
           user_id: string
         }
         Update: {
           amount?: number
+          bank_account_id?: string | null
           category?: string
           created_at?: string
           date?: string
           description?: string | null
+          external_reference?: string | null
           id?: string
+          source?: string
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "transactions_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_notifications: {
         Row: {
