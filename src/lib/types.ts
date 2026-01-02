@@ -31,6 +31,9 @@ export interface Transaction {
   category: string;
   description: string;
   date: string;
+  bank_account_id?: string | null;
+  source?: 'manual' | 'receipt' | 'bank_import';
+  external_reference?: string | null;
 }
 
 export interface Subscription {
