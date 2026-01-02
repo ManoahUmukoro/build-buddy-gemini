@@ -3,6 +3,7 @@ import { HelpCircle, ChevronDown, ChevronUp, Info, Loader2, FileText, MessageCir
 import { supabase } from '@/integrations/supabase/client';
 import { AnnouncementTicker } from '@/components/AnnouncementTicker';
 import { ErrorCenterPanel } from '@/components/ErrorCenterPanel';
+import { LiveSupportChat } from '@/components/LiveSupportChat';
 import { APP_VERSION, APP_NAME, BUILD_DATE } from '@/lib/appVersion';
 import { getLastNErrors, getErrorCount } from '@/lib/errorCenter';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,6 +47,7 @@ export function HelpTab() {
   const [articles, setArticles] = useState<HelpArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const { user } = useAuth();
   const errorCount = getErrorCount();
 
@@ -81,34 +83,7 @@ export function HelpTab() {
   }, {} as Record<string, HelpArticle[]>);
 
   const handleOpenLiveChat = () => {
-    const tawkStatus = (window as any).__tawkStatus;
-    const Tawk_API = (window as any).Tawk_API;
-
-    if (tawkStatus === 'ready' && Tawk_API) {
-      if (typeof Tawk_API.maximize === 'function') {
-        Tawk_API.maximize();
-      } else if (typeof Tawk_API.toggle === 'function') {
-        Tawk_API.toggle();
-      } else if (typeof Tawk_API.popup === 'function') {
-        Tawk_API.popup();
-      }
-    } else if (tawkStatus === 'loading') {
-      toast.info('Support chat is loading...', {
-        description: 'Please wait a moment and try again.',
-        action: {
-          label: 'Open in Browser',
-          onClick: () => window.open('https://tawk.to/chat/694c8271477298197c6e1229/1jd9dr3dp', '_blank'),
-        },
-      });
-    } else {
-      toast.warning('Support chat unavailable', {
-        description: 'It may be blocked by your browser or network.',
-        action: {
-          label: 'Open in Browser',
-          onClick: () => window.open('https://tawk.to/chat/694c8271477298197c6e1229/1jd9dr3dp', '_blank'),
-        },
-      });
-    }
+    setIsChatOpen(true);
   };
 
   const handleEmailSupport = () => {
@@ -266,6 +241,12 @@ ${errorSummary}
           </div>
         )}
       </div>
+
+      {/* Live Support Chat */}
+      <LiveSupportChat 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+      />
     </div>
   );
 }

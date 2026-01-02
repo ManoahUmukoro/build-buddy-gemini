@@ -29,6 +29,8 @@ import { AccountSelector } from '@/components/AccountSelector';
 import { BankAccountModal } from '@/components/BankAccountModal';
 import { BankStatementUpload } from '@/components/BankStatementUpload';
 import { FreelancerPricingTool } from '@/components/FreelancerPricingTool';
+import { TransactionSourceBadge } from '@/components/TransactionSourceBadge';
+import { AccountBalanceCards } from '@/components/AccountBalanceCards';
 import { useBankAccounts, BankAccount } from '@/hooks/useBankAccounts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -390,6 +392,19 @@ export function FinanceTab({
       {/* Overview Tab */}
       {financeTab === 'overview' && (
         <>
+          {/* Account Balance Cards */}
+          {accounts.length > 0 && (
+            <div className="bg-card p-4 md:p-6 rounded-xl shadow-soft border border-border">
+              <AccountBalanceCards
+                accounts={accounts}
+                transactions={transactions}
+                currency={currency}
+                selectedAccountId={selectedAccountId}
+                onSelectAccount={setSelectedAccountId}
+              />
+            </div>
+          )}
+
           {/* Stats Cards - 3-Card System */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
             {/* Card 1: Income & Balance Combined */}
@@ -670,7 +685,10 @@ export function FinanceTab({
                           {groupedTransactions[date].map((t, idx) => (
                             <div key={`${t.id}-${idx}`} className="flex justify-between items-start md:items-center p-2.5 md:p-3 bg-muted rounded-lg text-sm border border-border/50 gap-2">
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-card-foreground text-xs md:text-sm truncate">{t.description}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-card-foreground text-xs md:text-sm truncate">{t.description}</span>
+                                  <TransactionSourceBadge source={t.source} />
+                                </div>
                                 <div className="text-xs text-muted-foreground">
                                   {t.category || 'Income'}
                                 </div>

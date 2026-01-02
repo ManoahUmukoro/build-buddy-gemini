@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { FloatingFocusTimer } from '@/components/FloatingFocusTimer';
+import { LiveSupportChat } from '@/components/LiveSupportChat';
 import { useAI } from '@/hooks/useAI';
 import { DAYS } from '@/lib/constants';
 import { toast } from 'sonner';
@@ -30,10 +31,11 @@ export function FloatingActionHub({
   onSessionComplete 
 }: FloatingActionHubProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<'menu' | 'focus' | 'ai' | null>(null);
+  const [activePanel, setActivePanel] = useState<'menu' | 'focus' | 'ai' | 'support' | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [aiInput, setAIInput] = useState('');
   const [isAILoading, setIsAILoading] = useState(false);
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const ai = useAI();
 
@@ -78,45 +80,7 @@ export function FloatingActionHub({
   const handleSelectSupport = () => {
     setActivePanel(null);
     setIsOpen(false);
-    
-    // Check if Tawk.to is available and ready
-    if (window.Tawk_API) {
-      // Try to maximize the chat widget
-      if (typeof window.Tawk_API.maximize === 'function') {
-        try {
-          window.Tawk_API.maximize();
-          return;
-        } catch (e) {
-          console.log('Tawk.to maximize error:', e);
-        }
-      }
-      
-      // If maximize isn't available, the widget might still be loading
-      if (window.Tawk_LoadStart) {
-        const loadTime = Date.now() - window.Tawk_LoadStart.getTime();
-        if (loadTime < 10000) {
-          // Still loading (under 10 seconds)
-          toast.info('Support chat is loading...', {
-            description: 'Please wait a moment and try again.',
-            duration: 3000,
-          });
-          return;
-        }
-      }
-    }
-    
-    // Fallback - provide alternative contact method
-    toast.error('Support chat unavailable', {
-      description: 'Please email support@webnexer.com for assistance.',
-      duration: 6000,
-      action: {
-        label: 'Copy Email',
-        onClick: () => {
-          navigator.clipboard.writeText('support@webnexer.com');
-          toast.success('Email copied to clipboard');
-        }
-      }
-    });
+    setIsSupportChatOpen(true);
   };
 
   const handleAICommand = async (e: React.FormEvent) => {
@@ -298,6 +262,12 @@ export function FloatingActionHub({
           </div>
         </div>
       </Modal>
+
+      {/* Live Support Chat */}
+      <LiveSupportChat
+        isOpen={isSupportChatOpen}
+        onClose={() => setIsSupportChatOpen(false)}
+      />
     </>
   );
 }
