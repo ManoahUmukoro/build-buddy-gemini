@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { 
   TrendingUp, DollarSign, Wallet, Plus, Edit2, Trash2, X, 
   Sparkles, Loader2, MessageCircle, Wand2, CreditCard, PiggyBank, Receipt,
-  History, MoreVertical, Filter, ChevronDown
+  History, MoreVertical, Filter, ChevronDown, Calculator, FileUp, Building2
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction, Subscription, Budget, ChatMessage, SavingsGoal } from '@/lib/types';
@@ -25,6 +25,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { AccountSelector } from '@/components/AccountSelector';
+import { BankAccountModal } from '@/components/BankAccountModal';
+import { BankStatementUpload } from '@/components/BankStatementUpload';
+import { FreelancerPricingTool } from '@/components/FreelancerPricingTool';
+import { useBankAccounts, BankAccount } from '@/hooks/useBankAccounts';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface FinanceTabProps {
   transactions: Transaction[];

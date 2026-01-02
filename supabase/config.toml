@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.verify-code]
 verify_jwt = false
+
+[functions.parse-bank-statement]
+verify_jwt = true

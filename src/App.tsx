@@ -21,6 +21,9 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBilling from "./pages/admin/AdminBilling";
 import AdminEmail from "./pages/admin/AdminEmail";
 import AdminHelp from "./pages/admin/AdminHelp";
+import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminSupportInbox from "./pages/admin/AdminSupportInbox";
+import AdminCurrencyCache from "./pages/admin/AdminCurrencyCache";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +50,9 @@ const App = () => (
               <Route path="/admin/billing" element={<AdminRoute><AdminBilling /></AdminRoute>} />
               <Route path="/admin/email" element={<AdminRoute><AdminEmail /></AdminRoute>} />
               <Route path="/admin/help" element={<AdminRoute><AdminHelp /></AdminRoute>} />
+              <Route path="/admin/notifications" element={<AdminRoute><AdminNotifications /></AdminRoute>} />
+              <Route path="/admin/support" element={<AdminRoute><AdminSupportInbox /></AdminRoute>} />
+              <Route path="/admin/currency" element={<AdminRoute><AdminCurrencyCache /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
