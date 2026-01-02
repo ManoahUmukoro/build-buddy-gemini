@@ -68,6 +68,7 @@ interface FinanceTabProps {
     category: string;
     description: string;
     date: string;
+    bank_account_id?: string | null;
   };
   setNewTransaction: React.Dispatch<React.SetStateAction<{
     type: 'income' | 'expense';
@@ -75,6 +76,7 @@ interface FinanceTabProps {
     category: string;
     description: string;
     date: string;
+    bank_account_id?: string | null;
   }>>;
   editingTransactionId: string | number | null;
   setEditingTransactionId: (id: string | number | null) => void;
@@ -245,20 +247,31 @@ export function FinanceTab({
     
     setIsSubmitting(true);
     
-    const tData = {
-      ...newTransaction,
+    // Get the default bank account for new transactions
+    const primaryAccount = accounts.find(a => a.is_primary) || accounts[0];
+    const bankAccountId = newTransaction.bank_account_id || 
+      (selectedAccountId !== 'all' ? selectedAccountId : primaryAccount?.id) || null;
+
+    const tData: Transaction = {
+      id: editingTransactionId || Date.now(),
+      type: newTransaction.type,
       amount: parseFloat(newTransaction.amount),
-      category: newTransaction.type === 'income' ? 'Income' : newTransaction.category
+      category: newTransaction.type === 'income' ? 'Income' : newTransaction.category,
+      description: newTransaction.description,
+      date: newTransaction.date,
+      bank_account_id: bankAccountId,
+      source: 'manual' as const,
+      external_reference: null
     };
 
     if (editingTransactionId) {
       setTransactions(prev => prev.map(t => 
-        String(t.id) === String(editingTransactionId) ? { ...tData, id: t.id } as Transaction : t
+        String(t.id) === String(editingTransactionId) ? tData : t
       ));
       setEditingTransactionId(null);
     } else {
       setTransactions(prev => 
-        [{ ...tData, id: Date.now() } as Transaction, ...prev]
+        [tData, ...prev]
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       );
     }
@@ -268,7 +281,8 @@ export function FinanceTab({
       amount: '',
       category: categories[0],
       description: '',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      bank_account_id: null
     });
     setIsSubmitting(false);
   };

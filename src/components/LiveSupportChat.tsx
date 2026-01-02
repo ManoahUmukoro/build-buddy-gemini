@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Loader2, Minimize2 } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, Minimize2, User, Headphones } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
-interface Message {
+interface ChatMessage {
   id: string;
-  content: string;
+  ticket_id: string;
+  sender_id: string;
   sender_type: 'user' | 'admin';
+  content: string;
+  is_read: boolean;
   created_at: string;
 }
 
@@ -22,10 +25,12 @@ interface LiveSupportChatProps {
 export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChatProps) {
   const { user } = useAuth();
   const { profile } = useProfile();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [adminJoined, setAdminJoined] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,23 +53,38 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
     }
   }, [isOpen, user]);
 
-  // Subscribe to realtime updates for the ticket
+  // Subscribe to realtime updates for chat messages
   useEffect(() => {
     if (!ticketId) return;
 
     const channel = supabase
-      .channel(`support-ticket-${ticketId}`)
+      .channel(`chat-messages-${ticketId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: 'INSERT',
           schema: 'public',
-          table: 'support_tickets',
-          filter: `id=eq.${ticketId}`,
+          table: 'chat_messages',
+          filter: `ticket_id=eq.${ticketId}`,
         },
         (payload) => {
-          // Reload messages when ticket is updated
-          loadMessages(ticketId);
+          const newMessage = payload.new as ChatMessage;
+          setMessages(prev => {
+            // Avoid duplicates
+            if (prev.some(m => m.id === newMessage.id)) return prev;
+            
+            // Check if admin joined
+            if (newMessage.sender_type === 'admin' && !adminJoined) {
+              setAdminJoined(true);
+            }
+            
+            return [...prev, newMessage];
+          });
+          
+          // Mark as read if from admin
+          if (newMessage.sender_type === 'admin') {
+            markMessageAsRead(newMessage.id);
+          }
         }
       )
       .subscribe();
@@ -72,7 +92,7 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ticketId]);
+  }, [ticketId, adminJoined]);
 
   const loadOrCreateTicket = async () => {
     if (!user) return;
@@ -87,11 +107,11 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
         .in('status', ['open', 'in_progress'])
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (existingTicket && !fetchError) {
         setTicketId(existingTicket.id);
-        loadMessages(existingTicket.id);
+        await loadMessages(existingTicket.id);
       } else {
         // Create new ticket
         const { data: newTicket, error: createError } = await supabase
@@ -99,7 +119,7 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
           .insert({
             user_id: user.id,
             subject: 'Live Chat Support',
-            message: '',
+            message: 'Chat session started',
             status: 'open',
           })
           .select()
@@ -108,14 +128,8 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
         if (createError) throw createError;
         
         setTicketId(newTicket.id);
-        setMessages([
-          {
-            id: 'welcome',
-            content: `Hi ${profile?.display_name || 'there'}! 👋 How can we help you today?`,
-            sender_type: 'admin',
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        setMessages([]);
+        setAdminJoined(false);
       }
     } catch (error) {
       console.error('Error loading support ticket:', error);
@@ -127,100 +141,75 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
 
   const loadMessages = async (tid: string) => {
     try {
-      const { data: ticket, error } = await supabase
-        .from('support_tickets')
+      const { data, error } = await supabase
+        .from('chat_messages')
         .select('*')
-        .eq('id', tid)
-        .single();
+        .eq('ticket_id', tid)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
-
-      // Parse messages from ticket metadata or message field
-      const ticketMessages: Message[] = [];
       
-      // Add initial message if exists
-      if (ticket.message) {
-        ticketMessages.push({
-          id: 'initial',
-          content: ticket.message,
-          sender_type: 'user',
-          created_at: ticket.created_at,
-        });
-      }
+      const chatMessages = (data || []) as ChatMessage[];
+      setMessages(chatMessages);
       
-      // Add admin notes as response if exists
-      if (ticket.admin_notes) {
-        ticketMessages.push({
-          id: 'response',
-          content: ticket.admin_notes,
-          sender_type: 'admin',
-          created_at: ticket.updated_at,
-        });
+      // Check if admin has joined
+      const hasAdminMessage = chatMessages.some(m => m.sender_type === 'admin');
+      setAdminJoined(hasAdminMessage);
+      
+      // Mark admin messages as read
+      const unreadAdminMessages = chatMessages.filter(m => m.sender_type === 'admin' && !m.is_read);
+      for (const msg of unreadAdminMessages) {
+        markMessageAsRead(msg.id);
       }
-
-      // Add welcome message if no messages
-      if (ticketMessages.length === 0) {
-        ticketMessages.push({
-          id: 'welcome',
-          content: `Hi ${profile?.display_name || 'there'}! 👋 How can we help you today?`,
-          sender_type: 'admin',
-          created_at: new Date().toISOString(),
-        });
-      }
-
-      setMessages(ticketMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
   };
 
+  const markMessageAsRead = async (messageId: string) => {
+    try {
+      await supabase
+        .from('chat_messages')
+        .update({ is_read: true })
+        .eq('id', messageId);
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+    }
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !ticketId || isLoading) return;
+    if (!input.trim() || !ticketId || !user || isSending) return;
 
     const messageText = input.trim();
     setInput('');
-    
-    // Optimistic update
-    const tempMessage: Message = {
-      id: `temp-${Date.now()}`,
-      content: messageText,
-      sender_type: 'user',
-      created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, tempMessage]);
+    setIsSending(true);
 
     try {
-      // Update ticket with new message
       const { error } = await supabase
-        .from('support_tickets')
-        .update({ 
-          message: messageText,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', ticketId);
+        .from('chat_messages')
+        .insert({
+          ticket_id: ticketId,
+          sender_id: user.id,
+          sender_type: 'user',
+          content: messageText,
+        });
 
       if (error) throw error;
       
-      // Add auto-response for demo
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `auto-${Date.now()}`,
-            content: "Thanks for your message! Our support team will respond shortly. For urgent issues, please email support@webnexer.com",
-            sender_type: 'admin',
-            created_at: new Date().toISOString(),
-          },
-        ]);
-      }, 1000);
-      
+      // Update ticket to in_progress if first message
+      if (messages.length === 0) {
+        await supabase
+          .from('support_tickets')
+          .update({ message: messageText })
+          .eq('id', ticketId);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
-      // Remove optimistic message
-      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
       setInput(messageText);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -231,12 +220,17 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-primary/10 to-accent/10">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/20 rounded-full">
+          <div className="p-2 bg-primary/20 rounded-full relative">
             <MessageCircle size={18} className="text-primary" />
+            {adminJoined && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-card" />
+            )}
           </div>
           <div>
             <h4 className="font-bold text-sm text-card-foreground">Live Support</h4>
-            <p className="text-[10px] text-muted-foreground">We typically reply in minutes</p>
+            <p className="text-[10px] text-muted-foreground">
+              {adminJoined ? 'Agent connected' : 'Waiting for agent...'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -263,28 +257,65 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
           <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-primary" size={24} />
           </div>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                  msg.sender_type === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                    : 'bg-muted text-card-foreground rounded-bl-md'
-                }`}
-              >
-                <p className="leading-relaxed">{msg.content}</p>
-                <span className={`text-[10px] block mt-1 ${
-                  msg.sender_type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                }`}>
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="p-3 bg-primary/10 rounded-full mb-3">
+              <Headphones size={24} className="text-primary" />
             </div>
-          ))
+            <p className="text-sm font-medium text-card-foreground mb-1">
+              Hi {profile?.display_name || 'there'}! 👋
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Send us a message and we'll get back to you shortly.
+            </p>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg, index) => {
+              const isFirstAdminMessage = msg.sender_type === 'admin' && 
+                !messages.slice(0, index).some(m => m.sender_type === 'admin');
+              
+              return (
+                <div key={msg.id}>
+                  {isFirstAdminMessage && (
+                    <div className="flex items-center justify-center gap-2 py-2">
+                      <div className="h-px bg-border flex-1" />
+                      <span className="text-[10px] text-muted-foreground px-2">
+                        Support agent joined the chat
+                      </span>
+                      <div className="h-px bg-border flex-1" />
+                    </div>
+                  )}
+                  <div className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.sender_type === 'admin' && (
+                      <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center mr-2 shrink-0">
+                        <Headphones size={12} className="text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[75%] p-3 rounded-2xl text-sm ${
+                        msg.sender_type === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted text-card-foreground rounded-bl-md'
+                      }`}
+                    >
+                      <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      <span className={`text-[10px] block mt-1 ${
+                        msg.sender_type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      }`}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {msg.sender_type === 'user' && (
+                      <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center ml-2 shrink-0">
+                        <User size={12} className="text-secondary-foreground" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -299,15 +330,15 @@ export function LiveSupportChat({ isOpen, onClose, onMinimize }: LiveSupportChat
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             className="flex-1 px-4 py-2.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            disabled={isLoading}
+            disabled={isLoading || isSending}
           />
           <Button
             type="submit"
             size="icon"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isSending}
             className="rounded-xl"
           >
-            <Send size={18} />
+            {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
           </Button>
         </div>
       </form>

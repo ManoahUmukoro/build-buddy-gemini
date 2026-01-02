@@ -119,7 +119,10 @@ export function useSupabaseData() {
           amount: Number(t.amount),
           category: t.category,
           description: t.description || '',
-          date: t.date
+          date: t.date,
+          bank_account_id: t.bank_account_id || null,
+          source: (t.source || 'manual') as 'manual' | 'receipt' | 'bank_import',
+          external_reference: t.external_reference || null
         })));
       }
 
@@ -415,7 +418,16 @@ export function useSupabaseData() {
         const idStr = String(t.id);
         if (isUUID(t.id) && existingIds.has(idStr)) {
           await supabase.from('transactions')
-            .update({ type: t.type, amount: t.amount, category: t.category, description: t.description, date: t.date })
+            .update({ 
+              type: t.type, 
+              amount: t.amount, 
+              category: t.category, 
+              description: t.description, 
+              date: t.date,
+              bank_account_id: t.bank_account_id || null,
+              source: t.source || 'manual',
+              external_reference: t.external_reference || null
+            })
             .eq('id', idStr);
         } else if (!isUUID(t.id)) {
           await supabase.from('transactions').insert({
@@ -424,7 +436,10 @@ export function useSupabaseData() {
             amount: t.amount,
             category: t.category,
             description: t.description,
-            date: t.date
+            date: t.date,
+            bank_account_id: t.bank_account_id || null,
+            source: t.source || 'manual',
+            external_reference: t.external_reference || null
           });
         }
       }
