@@ -46,12 +46,8 @@ interface FinanceTabProps {
   setBudgets: React.Dispatch<React.SetStateAction<Budget>>;
   categories: string[];
   currency: string;
-  totalIncome: number;
-  totalExpense: number;
-  balance: number;
-  safeDailySpend: number;
+  // Removed: totalIncome, totalExpense, balance, safeDailySpend, expenseData - now calculated locally with account filtering
   totalFixedCosts: number;
-  expenseData: { name: string; value: number }[];
   financeAnalysis: string;
   isAnalyzingFinance: boolean;
   financeChatHistory: ChatMessage[];
@@ -80,7 +76,6 @@ interface FinanceTabProps {
   }>>;
   editingTransactionId: string | number | null;
   setEditingTransactionId: (id: string | number | null) => void;
-  currentMonthIncome: number;
 }
 
 type FinanceSubTab = 'overview' | 'budgets' | 'savings';
@@ -104,11 +99,7 @@ export function FinanceTab({
   setBudgets,
   categories,
   currency,
-  totalIncome,
-  balance,
-  safeDailySpend,
   totalFixedCosts,
-  expenseData,
   financeAnalysis,
   isAnalyzingFinance,
   financeChatHistory,
@@ -123,7 +114,6 @@ export function FinanceTab({
   setNewTransaction,
   editingTransactionId,
   setEditingTransactionId,
-  currentMonthIncome,
 }: FinanceTabProps) {
   const { user } = useAuth();
   const [isFinanceChatOpen, setIsFinanceChatOpen] = useState(false);
@@ -154,7 +144,70 @@ export function FinanceTab({
   const [filterAmountMin, setFilterAmountMin] = useState<string>('');
   const [filterAmountMax, setFilterAmountMax] = useState<string>('');
 
-  // Apply all filters including account filter
+  // =============== ACCOUNT-FILTERED CALCULATIONS ===============
+  // Filter transactions by selected account
+  const accountFilteredTransactions = useMemo(() => {
+    if (selectedAccountId === 'all') {
+      return transactions;
+    }
+    return transactions.filter(t => t.bank_account_id === selectedAccountId);
+  }, [transactions, selectedAccountId]);
+
+  // Calculate income/expense for the selected account(s) for current month
+  const today = new Date();
+  const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  
+  const currentMonthTransactions = useMemo(() => {
+    return accountFilteredTransactions.filter(t => t.date.startsWith(currentMonthStr));
+  }, [accountFilteredTransactions, currentMonthStr]);
+
+  const totalIncome = useMemo(() => {
+    return currentMonthTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [currentMonthTransactions]);
+
+  const totalExpense = useMemo(() => {
+    return currentMonthTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [currentMonthTransactions]);
+
+  // Calculate balance including opening balance
+  const balance = useMemo(() => {
+    const transactionBalance = totalIncome - totalExpense;
+    if (selectedAccountId !== 'all') {
+      const account = accounts.find(a => a.id === selectedAccountId);
+      return (account?.opening_balance || 0) + transactionBalance;
+    }
+    // For all accounts, sum opening balances + transaction balances
+    const totalOpening = accounts.reduce((sum, a) => sum + (a.opening_balance || 0), 0);
+    return totalOpening + transactionBalance;
+  }, [selectedAccountId, accounts, totalIncome, totalExpense]);
+
+  // Safe Daily Spend - account filtered
+  const safeDailySpend = useMemo(() => {
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysLeft = Math.max(1, daysInMonth - today.getDate());
+    
+    const totalSavingsGoals = savingsGoals.reduce((acc, g) => acc + Math.max(0, g.target - g.current), 0);
+    const remainingBudget = (totalIncome - totalExpense) - totalFixedCosts - totalSavingsGoals;
+    return Math.max(0, remainingBudget / daysLeft);
+  }, [totalIncome, totalExpense, totalFixedCosts, savingsGoals, today]);
+
+  // Expense data for charts - account filtered
+  const expenseData = useMemo(() => {
+    return categories.map(cat => ({
+      name: cat,
+      value: currentMonthTransactions
+        .filter(t => t.type === 'expense' && t.category === cat)
+        .reduce((sum, t) => sum + t.amount, 0)
+    })).filter(item => item.value > 0);
+  }, [currentMonthTransactions, categories]);
+
+  // =============== END ACCOUNT-FILTERED CALCULATIONS ===============
+
+  // Apply all filters including account filter for the transaction list display
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter(t => t.date.startsWith(financeMonthFilter))
@@ -167,7 +220,7 @@ export function FinanceTab({
       })
       .filter(t => selectedAccountId === 'all' || t.bank_account_id === selectedAccountId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, financeMonthFilter, filterType, filterCategory, filterAmountMin, filterAmountMax]);
+  }, [transactions, financeMonthFilter, filterType, filterCategory, filterAmountMin, filterAmountMax, selectedAccountId]);
 
   // Group transactions by date
   const groupedTransactions = useMemo(() => {
@@ -218,7 +271,7 @@ export function FinanceTab({
   };
 
   const calculateSmartBudgets = () => {
-    const income = currentMonthIncome > 0 ? currentMonthIncome : totalIncome;
+    const income = totalIncome > 0 ? totalIncome : 0;
     if (income === 0) return toast.error("Log some income first!");
     
     // 50/30/20 Rule
@@ -372,9 +425,12 @@ export function FinanceTab({
                 setIsBankAccountModalOpen(true);
               }}
               onManageAccounts={() => {
-                // Open the first account for editing as a simple "manage" action
-                if (accounts.length > 0) {
-                  setEditingAccount(accounts[0]);
+                // Open the currently selected account, or primary if "all" is selected
+                const accountToEdit = selectedAccountId !== 'all' 
+                  ? accounts.find(a => a.id === selectedAccountId)
+                  : (accounts.find(a => a.is_primary) || accounts[0]);
+                if (accountToEdit) {
+                  setEditingAccount(accountToEdit);
                   setIsBankAccountModalOpen(true);
                 }
               }}
