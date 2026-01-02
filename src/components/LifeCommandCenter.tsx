@@ -839,12 +839,7 @@ export default function LifeCommandCenter() {
                   setBudgets={setBudgets}
                   categories={categories}
                   currency={currency}
-                  totalIncome={totalIncome}
-                  totalExpense={totalExpense}
-                  balance={balance}
-                  safeDailySpend={safeDailySpend}
                   totalFixedCosts={totalFixedCosts}
-                  expenseData={expenseData}
                   financeAnalysis={financeAnalysis}
                   isAnalyzingFinance={isAnalyzingFinance}
                   financeChatHistory={financeChatHistory}
@@ -859,7 +854,6 @@ export default function LifeCommandCenter() {
                   setNewTransaction={setNewTransaction}
                   editingTransactionId={editingTransactionId}
                   setEditingTransactionId={setEditingTransactionId}
-                  currentMonthIncome={currentMonthIncome}
                 />
               ) : <ModuleDisabled moduleName="Finances" />
             )}
