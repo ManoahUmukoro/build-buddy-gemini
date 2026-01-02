@@ -121,11 +121,27 @@ export function FinanceTab({
   setEditingTransactionId,
   currentMonthIncome,
 }: FinanceTabProps) {
+  const { user } = useAuth();
   const [isFinanceChatOpen, setIsFinanceChatOpen] = useState(false);
   const [financeTab, setFinanceTab] = useState<FinanceSubTab>('overview');
   const [financeMonthFilter, setFinanceMonthFilter] = useState(new Date().toISOString().slice(0, 7));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { canScanReceipts, canAutoCategorize } = useEntitlements();
+
+  // Bank accounts state
+  const { 
+    accounts, 
+    loading: accountsLoading, 
+    selectedAccountId, 
+    setSelectedAccountId,
+    createAccount,
+    updateAccount,
+    deleteAccount
+  } = useBankAccounts();
+  const [isBankAccountModalOpen, setIsBankAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [isBankUploadOpen, setIsBankUploadOpen] = useState(false);
+  const [isFreelancerToolOpen, setIsFreelancerToolOpen] = useState(false);
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -134,7 +150,7 @@ export function FinanceTab({
   const [filterAmountMin, setFilterAmountMin] = useState<string>('');
   const [filterAmountMax, setFilterAmountMax] = useState<string>('');
 
-  // Apply all filters
+  // Apply all filters including account filter
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter(t => t.date.startsWith(financeMonthFilter))
@@ -145,6 +161,7 @@ export function FinanceTab({
         const max = parseFloat(filterAmountMax) || Infinity;
         return t.amount >= min && t.amount <= max;
       })
+      .filter(t => selectedAccountId === 'all' || t.bank_account_id === selectedAccountId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, financeMonthFilter, filterType, filterCategory, filterAmountMin, filterAmountMax]);
 
@@ -254,28 +271,120 @@ export function FinanceTab({
     setIsSubmitting(false);
   };
 
+  // Bank account handlers
+  const handleSaveAccount = async (data: Omit<BankAccount, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    if (editingAccount) {
+      await updateAccount(editingAccount.id, data);
+    } else {
+      await createAccount(data);
+    }
+    setEditingAccount(null);
+  };
+
+  const handleDeleteAccount = async (id: string) => {
+    const success = await deleteAccount(id);
+    return success;
+  };
+
+  const handleBankStatementImport = async (
+    parsedTransactions: Array<{ date: string; amount: number; type: string; description: string; category?: string }>,
+    accountId: string
+  ) => {
+    if (!user) return;
+    
+    try {
+      const transactionsToInsert = parsedTransactions.map(t => ({
+        user_id: user.id,
+        bank_account_id: accountId,
+        date: t.date,
+        amount: t.amount,
+        type: t.type,
+        description: t.description,
+        category: t.category || (t.type === 'income' ? 'Income' : 'Other'),
+        source: 'bank_import' as const,
+      }));
+
+      const { error } = await supabase
+        .from('transactions')
+        .insert(transactionsToInsert);
+
+      if (error) throw error;
+      
+      toast.success(`Imported ${parsedTransactions.length} transactions!`);
+      setIsBankUploadOpen(false);
+      // Refresh transactions (parent component should handle this)
+    } catch (error) {
+      console.error('Error importing transactions:', error);
+      toast.error('Failed to import transactions');
+    }
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
-      {/* Sub-Tab Navigation */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {[
-          { id: 'overview' as FinanceSubTab, label: 'Overview', icon: DollarSign },
-          { id: 'budgets' as FinanceSubTab, label: 'Budgets', icon: CreditCard },
-          { id: 'savings' as FinanceSubTab, label: 'Savings', icon: PiggyBank },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setFinanceTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
-              financeTab === tab.id
-                ? 'bg-primary text-primary-foreground shadow-glow'
-                : 'bg-card text-muted-foreground hover:bg-accent border border-border'
-            }`}
-          >
-            <tab.icon size={16} />
-            {tab.label}
-          </button>
-        ))}
+      {/* Sub-Tab Navigation + Account Selector */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {[
+            { id: 'overview' as FinanceSubTab, label: 'Overview', icon: DollarSign },
+            { id: 'budgets' as FinanceSubTab, label: 'Budgets', icon: CreditCard },
+            { id: 'savings' as FinanceSubTab, label: 'Savings', icon: PiggyBank },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setFinanceTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
+                financeTab === tab.id
+                  ? 'bg-primary text-primary-foreground shadow-glow'
+                  : 'bg-card text-muted-foreground hover:bg-accent border border-border'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* Account Selector & Tools */}
+        {financeTab === 'overview' && (
+          <div className="flex items-center gap-2">
+            <AccountSelector
+              accounts={accounts}
+              selectedAccountId={selectedAccountId}
+              onSelect={setSelectedAccountId}
+              onAddAccount={() => {
+                setEditingAccount(null);
+                setIsBankAccountModalOpen(true);
+              }}
+              onManageAccounts={() => {
+                // Open the first account for editing as a simple "manage" action
+                if (accounts.length > 0) {
+                  setEditingAccount(accounts[0]);
+                  setIsBankAccountModalOpen(true);
+                }
+              }}
+            />
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  <Building2 size={14} />
+                  <span className="hidden sm:inline">Tools</span>
+                  <ChevronDown size={12} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setIsBankUploadOpen(true)}>
+                  <FileUp size={14} className="mr-2" />
+                  Import Statement
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsFreelancerToolOpen(true)}>
+                  <Calculator size={14} className="mr-2" />
+                  Rate Calculator
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       {/* Overview Tab */}
@@ -874,6 +983,34 @@ export function FinanceTab({
           personaName="Nexer"
         />
       </Modal>
+
+      {/* Bank Account Modal */}
+      <BankAccountModal
+        isOpen={isBankAccountModalOpen}
+        onClose={() => {
+          setIsBankAccountModalOpen(false);
+          setEditingAccount(null);
+        }}
+        account={editingAccount}
+        onSave={handleSaveAccount}
+        onDelete={handleDeleteAccount}
+      />
+
+      {/* Bank Statement Upload Modal */}
+      <BankStatementUpload
+        isOpen={isBankUploadOpen}
+        onClose={() => setIsBankUploadOpen(false)}
+        accounts={accounts}
+        currency={currency}
+        onImport={handleBankStatementImport}
+      />
+
+      {/* Freelancer Pricing Tool */}
+      <FreelancerPricingTool
+        isOpen={isFreelancerToolOpen}
+        onClose={() => setIsFreelancerToolOpen(false)}
+        currency={currency}
+      />
     </div>
   );
 }

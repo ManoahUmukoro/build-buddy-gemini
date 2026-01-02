@@ -8,7 +8,10 @@ import {
   LayoutDashboard,
   Shield,
   Home,
-  Lock
+  Lock,
+  Bell,
+  Inbox,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
@@ -32,6 +35,9 @@ const navItems: NavItem[] = [
   { icon: CreditCard, label: 'Billing', path: '/admin/billing', permission: 'canAccessBilling' },
   { icon: Mail, label: 'Email', path: '/admin/email', permission: 'canManageEmail' },
   { icon: HelpCircle, label: 'Help Content', path: '/admin/help', permission: 'canManageHelpContent' },
+  { icon: Bell, label: 'Notifications', path: '/admin/notifications', permission: 'canManageSettings' },
+  { icon: Inbox, label: 'Support Inbox', path: '/admin/support', permission: 'canManageUsers' },
+  { icon: DollarSign, label: 'Currency Cache', path: '/admin/currency', permission: 'canManageSettings' },
 ];
 
 export function AdminSidebar({ onClose }: AdminSidebarProps) {
