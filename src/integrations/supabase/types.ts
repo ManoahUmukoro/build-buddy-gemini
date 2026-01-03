@@ -98,6 +98,36 @@ export type Database = {
         }
         Relationships: []
       }
+      app_changelog: {
+        Row: {
+          changes: Json
+          created_at: string | null
+          id: string
+          is_major: boolean | null
+          release_date: string
+          title: string
+          version: string
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string | null
+          id?: string
+          is_major?: boolean | null
+          release_date?: string
+          title: string
+          version: string
+        }
+        Update: {
+          changes?: Json
+          created_at?: string | null
+          id?: string
+          is_major?: boolean | null
+          release_date?: string
+          title?: string
+          version?: string
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_type: string
@@ -502,6 +532,9 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          last_seen_changelog_version: string | null
+          onboarding_completed_at: string | null
+          tutorial_hints_enabled: boolean | null
           updated_at: string
           user_id: string
         }
@@ -510,6 +543,9 @@ export type Database = {
           created_at?: string
           display_name: string
           id?: string
+          last_seen_changelog_version?: string | null
+          onboarding_completed_at?: string | null
+          tutorial_hints_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
@@ -518,6 +554,9 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
+          last_seen_changelog_version?: string | null
+          onboarding_completed_at?: string | null
+          tutorial_hints_enabled?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -778,6 +817,27 @@ export type Database = {
           },
         ]
       }
+      user_hint_dismissals: {
+        Row: {
+          dismissed_at: string | null
+          hint_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          dismissed_at?: string | null
+          hint_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          dismissed_at?: string | null
+          hint_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_notifications: {
         Row: {
           created_at: string
@@ -888,6 +948,36 @@ export type Database = {
           preferences?: Json | null
           privacy?: Json | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_tutorial_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          current_step: number | null
+          id: string
+          is_completed: boolean | null
+          tutorial_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          is_completed?: boolean | null
+          tutorial_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          is_completed?: boolean | null
+          tutorial_id?: string
           user_id?: string
         }
         Relationships: []

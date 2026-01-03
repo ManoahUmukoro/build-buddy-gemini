@@ -15,7 +15,7 @@ serve(async (req) => {
   try {
     const { type, messages, context } = await req.json();
     
-    // Get user's Gemini API key from database
+    // Authenticate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -27,6 +27,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    
+    if (!lovableApiKey) {
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured. Please contact support.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -41,26 +50,19 @@ serve(async (req) => {
       );
     }
 
-    // Get user's Gemini API key from settings
-    const { data: settings, error: settingsError } = await supabase
-      .from('user_settings')
-      .select('gemini_api_key')
+    // Check if user has Pro plan for AI features
+    const { data: userPlan } = await supabase
+      .from('user_plans')
+      .select('plan, status')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (settingsError) {
-      console.error('Error fetching settings:', settingsError);
+    const isPro = userPlan?.plan === 'pro' && userPlan?.status === 'active';
+    
+    if (!isPro) {
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch user settings' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const geminiApiKey = settings?.gemini_api_key;
-    if (!geminiApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'No Gemini API key configured. Please add your API key in Settings.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'AI features require a Pro subscription. Upgrade to unlock AI-powered insights.' }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -70,7 +72,6 @@ serve(async (req) => {
     
     if (contextAwareTypes.includes(type)) {
       try {
-        // Use service role client to call the function
         const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
         const { data: contextData, error: contextError } = await adminSupabase
           .rpc('get_user_context', { uid: user.id });
@@ -158,63 +159,69 @@ ${contextString}`;
         systemPrompt = 'You are a helpful AI assistant.';
     }
 
-    // Build messages for Gemini API
-    const apiMessages = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'model', parts: [{ text: 'Understood. I will help you.' }] },
+    // Build messages for Lovable AI API (OpenAI-compatible format)
+    const apiMessages: Array<{ role: string; content: string }> = [
+      { role: 'system', content: systemPrompt },
     ];
 
     if (messages && messages.length > 0) {
       for (const msg of messages) {
         apiMessages.push({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
+          content: msg.content
         });
       }
     }
 
     if (userPrompt) {
-      apiMessages.push({ role: 'user', parts: [{ text: userPrompt }] });
+      apiMessages.push({ role: 'user', content: userPrompt });
     }
 
-    console.log('Calling Gemini API with type:', type, 'has context:', !!userContext);
+    console.log('Calling Lovable AI with type:', type, 'has context:', !!userContext);
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: apiMessages,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-          },
-        }),
-      }
-    );
+    // Call Lovable AI gateway
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: apiMessages,
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
+      console.error('Lovable AI error:', response.status, errorText);
       
-      if (response.status === 400 && errorText.includes('API_KEY_INVALID')) {
+      if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: 'Invalid Gemini API key. Please check your API key in Settings.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'AI rate limit reached. Please try again in a moment.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'AI credits exhausted. Please contact support.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       return new Response(
-        JSON.stringify({ error: 'Gemini API error. Please check your API key.' }),
+        JSON.stringify({ error: 'AI service temporarily unavailable. Please try again.' }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const content = data.choices?.[0]?.message?.content || '';
 
-    console.log('Gemini response received for type:', type);
+    console.log('Lovable AI response received for type:', type);
 
     return new Response(
       JSON.stringify({ content }),

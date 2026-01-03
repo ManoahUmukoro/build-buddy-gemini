@@ -19,6 +19,8 @@ import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { ReceiptReviewModal } from '@/components/ReceiptReviewModal';
 import { TaskInputModal } from '@/components/TaskInputModal';
 import { DailyPlanAssistant } from '@/components/DailyPlanAssistant';
+import { WhatsNewModal } from '@/components/WhatsNewModal';
+import { TutorialProvider } from '@/components/tutorial/TutorialProvider';
 import { TabId, ModalConfig, ChatMessage, JournalEntry, AlertItem, SavingsGoal } from '@/lib/types';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAI } from '@/hooks/useAI';
@@ -784,6 +786,7 @@ export default function LifeCommandCenter() {
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <WhatsNewModal />
       {showOnboarding && (
         <Onboarding 
           onComplete={handleCompleteOnboarding} 
@@ -884,8 +887,6 @@ export default function LifeCommandCenter() {
               <SettingsTab
                 onBackup={handleBackup}
                 onRestore={handleRestore}
-                geminiApiKey={geminiApiKey}
-                onSaveApiKey={setGeminiApiKey}
               />
             )}
           </div>
