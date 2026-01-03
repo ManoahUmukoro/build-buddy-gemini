@@ -34,6 +34,7 @@ import { AccountBalanceCards } from '@/components/AccountBalanceCards';
 import { useBankAccounts, BankAccount } from '@/hooks/useBankAccounts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { ContextualHint, HINTS } from '@/components/ContextualHint';
 
 interface FinanceTabProps {
   transactions: Transaction[];
@@ -415,7 +416,7 @@ export function FinanceTab({
         
         {/* Account Selector & Tools */}
         {financeTab === 'overview' && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tutorial="account-selector">
             <AccountSelector
               accounts={accounts}
               selectedAccountId={selectedAccountId}
@@ -445,10 +446,17 @@ export function FinanceTab({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => setIsBankUploadOpen(true)}>
-                  <FileUp size={14} className="mr-2" />
-                  Import Statement
-                </DropdownMenuItem>
+                <ContextualHint
+                  hintId={HINTS.importStatement.id}
+                  title={HINTS.importStatement.title}
+                  description={HINTS.importStatement.description}
+                  side="left"
+                >
+                  <DropdownMenuItem onClick={() => setIsBankUploadOpen(true)} data-tutorial="import-statement">
+                    <FileUp size={14} className="mr-2" />
+                    Smart Import
+                  </DropdownMenuItem>
+                </ContextualHint>
                 <DropdownMenuItem onClick={() => setIsFreelancerToolOpen(true)}>
                   <Calculator size={14} className="mr-2" />
                   Rate Calculator
@@ -507,10 +515,17 @@ export function FinanceTab({
             </div>
             
             {/* Card 3: Safe Daily Spend */}
-            <div className="bg-primary/10 p-4 md:p-6 rounded-xl shadow-soft">
-              <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
-                <CreditCard size={18} className="shrink-0" /> <span className="truncate">Safe Daily Spend</span>
-              </div>
+            <div className="bg-primary/10 p-4 md:p-6 rounded-xl shadow-soft" data-tutorial="safe-daily-spend">
+              <ContextualHint
+                hintId={HINTS.safeDailySpend.id}
+                title={HINTS.safeDailySpend.title}
+                description={HINTS.safeDailySpend.description}
+                side="bottom"
+              >
+                <div className="flex items-center gap-2 text-primary mb-1 md:mb-2 font-medium text-sm md:text-base">
+                  <CreditCard size={18} className="shrink-0" /> <span className="truncate">Safe Daily Spend</span>
+                </div>
+              </ContextualHint>
               <div className="text-lg md:text-3xl font-bold text-primary truncate">
                 {formatCurrency(safeDailySpend, currency)}
               </div>

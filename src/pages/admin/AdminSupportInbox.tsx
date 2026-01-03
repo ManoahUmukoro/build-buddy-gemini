@@ -242,6 +242,21 @@ export default function AdminSupportInbox() {
           t.id === selectedTicket.id ? { ...t, status: 'in_progress' } : t
         ));
       }
+
+      // Notify user via email about admin reply
+      try {
+        await supabase.functions.invoke('notify-ticket-reply', {
+          body: {
+            ticket_id: selectedTicket.id,
+            user_id: selectedTicket.user_id,
+            admin_message: messageText,
+            ticket_subject: selectedTicket.subject
+          }
+        });
+      } catch (emailError) {
+        console.warn('Could not send email notification:', emailError);
+        // Don't fail the whole operation if email fails
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');

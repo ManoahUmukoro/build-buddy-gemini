@@ -138,6 +138,7 @@ export function Sidebar({ activeTab, onTabChange, alerts = [], onClearAlerts }: 
           <button
             key={item.id}
             onClick={() => onTabChange(item.id)}
+            data-tutorial={`nav-${item.id}`}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
               activeTab === item.id 
                 ? 'bg-primary text-primary-foreground shadow-glow' 
@@ -254,6 +255,7 @@ export function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
         <button
           key={item.id}
           onClick={() => onTabChange(item.id)}
+          data-tutorial={`nav-${item.id}`}
           className={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] p-2 rounded-2xl transition-all ${
             activeTab === item.id 
               ? 'text-primary' 

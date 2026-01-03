@@ -407,6 +407,7 @@ export function DashboardTab({
                     onClick={() => onOpenModal('addTask', taskKey)} 
                     className="bg-primary/10 text-primary hover:bg-primary/20 p-2 rounded-full transition-colors"
                     title="Add Task"
+                    data-tutorial="add-task"
                   >
                     <Plus size={16} />
                   </button>
@@ -430,12 +431,14 @@ export function DashboardTab({
         })}
         
         {/* Idea Dump (formerly Brain Dump) */}
-        <IdeaDump 
-          ideas={tasks['IdeaDump'] || tasks['BrainDump'] || []}
-          onAddIdea={handleAddIdea}
-          onEditIdea={handleEditIdea}
-          onDeleteIdea={handleDeleteIdea}
-        />
+        <div data-tutorial="idea-dump">
+          <IdeaDump 
+            ideas={tasks['IdeaDump'] || tasks['BrainDump'] || []}
+            onAddIdea={handleAddIdea}
+            onEditIdea={handleEditIdea}
+            onDeleteIdea={handleDeleteIdea}
+          />
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { BankAccount } from '@/hooks/useBankAccounts';
 import { Transaction } from '@/lib/types';
 import { formatCurrency } from '@/lib/formatters';
 import { useMemo } from 'react';
+import { ContextualHint, HINTS } from '@/components/ContextualHint';
 
 interface AccountBalanceCardsProps {
   accounts: BankAccount[];
@@ -66,7 +67,14 @@ export function AccountBalanceCards({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-card-foreground">Account Balances</h4>
+        <ContextualHint
+          hintId={HINTS.accountBalance.id}
+          title={HINTS.accountBalance.title}
+          description={HINTS.accountBalance.description}
+          side="right"
+        >
+          <h4 className="text-sm font-semibold text-card-foreground">Account Balances</h4>
+        </ContextualHint>
         <span className="text-xs text-muted-foreground">
           Total: <span className={`font-bold ${totalBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
             {formatCurrency(totalBalance, currency)}

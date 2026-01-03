@@ -25,11 +25,12 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2, Plus, Edit, Mail, Send, Settings, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Save, Loader2, Plus, Edit, Mail, Send, Settings, FileText, CheckCircle, AlertCircle, Play } from 'lucide-react';
 
 interface EmailTemplate {
   id: string;
   name: string;
+  slug: string | null;
   subject: string;
   body: string;
   is_active: boolean;
@@ -64,6 +65,8 @@ export default function AdminEmail() {
   const [testEmail, setTestEmail] = useState('');
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [triggeringDigest, setTriggeringDigest] = useState(false);
+  const [triggeringWeekly, setTriggeringWeekly] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -145,11 +148,15 @@ export default function AdminEmail() {
     try {
       setSaving(true);
       
+      // Auto-generate slug from name if not provided
+      const slug = editTemplate.slug || editTemplate.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      
       if (editTemplate.id) {
         const { error } = await supabase
           .from('email_templates')
           .update({
             name: editTemplate.name,
+            slug: slug,
             subject: editTemplate.subject,
             body: editTemplate.body,
             is_active: editTemplate.is_active,
@@ -162,6 +169,7 @@ export default function AdminEmail() {
           .from('email_templates')
           .insert({
             name: editTemplate.name,
+            slug: slug,
             subject: editTemplate.subject,
             body: editTemplate.body,
             is_active: editTemplate.is_active,
@@ -179,6 +187,38 @@ export default function AdminEmail() {
       toast.error('Failed to save template');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function triggerDailyDigest() {
+    setTriggeringDigest(true);
+    try {
+      const { error } = await supabase.functions.invoke('daily-digest', {
+        body: { test: true }
+      });
+      if (error) throw error;
+      toast.success('Daily Digest triggered successfully!');
+    } catch (err: any) {
+      console.error('Error triggering daily digest:', err);
+      toast.error(err.message || 'Failed to trigger daily digest');
+    } finally {
+      setTriggeringDigest(false);
+    }
+  }
+
+  async function triggerWeeklyCheckin() {
+    setTriggeringWeekly(true);
+    try {
+      const { error } = await supabase.functions.invoke('weekly-checkin', {
+        body: { test: true }
+      });
+      if (error) throw error;
+      toast.success('Weekly Check-in triggered successfully!');
+    } catch (err: any) {
+      console.error('Error triggering weekly check-in:', err);
+      toast.error(err.message || 'Failed to trigger weekly check-in');
+    } finally {
+      setTriggeringWeekly(false);
     }
   }
 
@@ -323,7 +363,7 @@ export default function AdminEmail() {
                       <DialogTrigger asChild>
                         <Button
                           size="sm"
-                          onClick={() => setEditTemplate({ id: '', name: '', subject: '', body: '', is_active: true })}
+                          onClick={() => setEditTemplate({ id: '', name: '', slug: null, subject: '', body: '', is_active: true })}
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Add Template
@@ -334,13 +374,25 @@ export default function AdminEmail() {
                           <DialogTitle>{editTemplate?.id ? 'Edit Template' : 'New Template'}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="template-name">Template Name</Label>
-                            <Input
-                              id="template-name"
-                              value={editTemplate?.name || ''}
-                              onChange={(e) => setEditTemplate(prev => prev ? { ...prev, name: e.target.value } : null)}
-                            />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="template-name">Template Name</Label>
+                              <Input
+                                id="template-name"
+                                value={editTemplate?.name || ''}
+                                onChange={(e) => setEditTemplate(prev => prev ? { ...prev, name: e.target.value } : null)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="template-slug">Slug (for edge functions)</Label>
+                              <Input
+                                id="template-slug"
+                                placeholder="auto_generated_from_name"
+                                value={editTemplate?.slug || ''}
+                                onChange={(e) => setEditTemplate(prev => prev ? { ...prev, slug: e.target.value } : null)}
+                              />
+                              <p className="text-xs text-muted-foreground">Used by edge functions to find templates</p>
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="template-subject">Subject</Label>
@@ -388,6 +440,7 @@ export default function AdminEmail() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
+                      <TableHead>Slug</TableHead>
                       <TableHead>Subject</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -397,6 +450,13 @@ export default function AdminEmail() {
                     {templates.map((template) => (
                       <TableRow key={template.id}>
                         <TableCell className="font-medium">{template.name}</TableCell>
+                        <TableCell>
+                          {template.slug ? (
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{template.slug}</code>
+                          ) : (
+                            <span className="text-xs text-warning">Not set</span>
+                          )}
+                        </TableCell>
                         <TableCell className="max-w-xs truncate">{template.subject}</TableCell>
                         <TableCell>
                           <Badge variant={template.is_active ? 'default' : 'secondary'}>
@@ -408,7 +468,7 @@ export default function AdminEmail() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setEditTemplate(template);
+                              setEditTemplate({ ...template, slug: template.slug || null });
                               setDialogOpen(true);
                             }}
                           >
@@ -419,13 +479,42 @@ export default function AdminEmail() {
                     ))}
                     {templates.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                           No templates yet. Click "Create Default Templates" to get started.
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+            
+            {/* Manual Trigger Section */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Play className="h-5 w-5" />
+                  Manual Triggers
+                </CardTitle>
+                <CardDescription>Manually trigger scheduled email functions for testing</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={triggerDailyDigest}
+                  disabled={triggeringDigest}
+                >
+                  {triggeringDigest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                  Test Daily Digest
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={triggerWeeklyCheckin}
+                  disabled={triggeringWeekly}
+                >
+                  {triggeringWeekly ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                  Test Weekly Check-in
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

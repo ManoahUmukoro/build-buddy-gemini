@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { ContextualHint, HINTS } from '@/components/ContextualHint';
 
 interface SystemsTabProps {
   systems: System[];
@@ -430,15 +431,22 @@ export function SystemsTab({ systems, setSystems, onOpenModal }: SystemsTabProps
                           <Target size={14} className="text-primary md:w-[18px] md:h-[18px] flex-shrink-0" />
                           <span className="break-words">{system.goal}</span>
                         </h4>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          calculateStreakPercentage(system) >= 70 
-                            ? 'bg-success/20 text-success' 
-                            : calculateStreakPercentage(system) >= 40 
-                              ? 'bg-warning/20 text-warning' 
-                              : 'bg-muted-foreground/20 text-muted-foreground'
-                        }`}>
-                          {calculateStreakPercentage(system)}%
-                        </span>
+                        <ContextualHint
+                          hintId={HINTS.habitStreak.id}
+                          title={HINTS.habitStreak.title}
+                          description={HINTS.habitStreak.description}
+                          side="bottom"
+                        >
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            calculateStreakPercentage(system) >= 70 
+                              ? 'bg-success/20 text-success' 
+                              : calculateStreakPercentage(system) >= 40 
+                                ? 'bg-warning/20 text-warning' 
+                                : 'bg-muted-foreground/20 text-muted-foreground'
+                          }`}>
+                            {calculateStreakPercentage(system)}%
+                          </span>
+                        </ContextualHint>
                       </div>
                       <p className="text-xs text-muted-foreground italic mt-1 line-clamp-2">{system.why}</p>
                     </div>
