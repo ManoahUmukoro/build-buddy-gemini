@@ -8,10 +8,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { 
-  Bell, Plus, Edit2, Trash2, Clock, Save, X, 
-  Loader2, AlertCircle, CheckCircle2, Play, Pause
+  Bell, Plus, Edit2, Trash2, Clock, Save, 
+  Loader2, Play, Pause, Zap, Info
 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface NotificationTrigger {
   id: string;
@@ -27,11 +33,14 @@ interface NotificationTrigger {
 }
 
 const TRIGGER_TYPES = [
-  { value: 'inactivity', label: 'User Inactivity', description: 'Trigger when user hasn\'t logged in for X days' },
-  { value: 'no_transactions', label: 'No Transactions', description: 'Trigger when no transactions for X days' },
-  { value: 'no_tasks_tomorrow', label: 'No Tasks Tomorrow', description: 'Trigger when user has no tasks planned for tomorrow' },
-  { value: 'low_savings', label: 'Low Savings Progress', description: 'Trigger when savings goals are behind schedule' },
-  { value: 'broadcast', label: 'Broadcast Message', description: 'Send to all users at scheduled time' },
+  { value: 'inactivity', label: 'User Inactivity', description: 'Trigger when user hasn\'t been active for X hours', conditionLabel: 'Hours Inactive', conditionKey: 'hours_inactive', defaultValue: 24 },
+  { value: 'no_transactions', label: 'No Transactions', description: 'Trigger when no transactions logged today', conditionLabel: null, conditionKey: null, defaultValue: null },
+  { value: 'no_tasks_tomorrow', label: 'No Tasks Tomorrow', description: 'Trigger when user has no tasks planned for tomorrow', conditionLabel: null, conditionKey: null, defaultValue: null },
+  { value: 'low_savings', label: 'Low Savings Progress', description: 'Trigger when savings goals are below threshold %', conditionLabel: 'Threshold %', conditionKey: 'threshold_percent', defaultValue: 50 },
+  { value: 'habit_streak_at_risk', label: 'Habit Streak at Risk', description: 'Trigger when habits haven\'t been completed by a certain hour', conditionLabel: 'After Hour (24h)', conditionKey: 'threshold_hour', defaultValue: 18 },
+  { value: 'budget_exceeded', label: 'Budget Exceeded', description: 'Trigger when any budget category is exceeded', conditionLabel: null, conditionKey: null, defaultValue: null },
+  { value: 'goal_achieved', label: 'Goal Achieved', description: 'Trigger when a savings goal is reached (100%)', conditionLabel: null, conditionKey: null, defaultValue: null },
+  { value: 'broadcast', label: 'Broadcast Message', description: 'Send to all users at scheduled time', conditionLabel: null, conditionKey: null, defaultValue: null },
 ];
 
 export default function AdminNotifications() {
@@ -40,13 +49,22 @@ export default function AdminNotifications() {
   const [editingTrigger, setEditingTrigger] = useState<NotificationTrigger | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [testingTrigger, setTestingTrigger] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    trigger_type: string;
+    message_title: string;
+    message_body: string;
+    condition: Record<string, number>;
+    schedule_time: string;
+    is_active: boolean;
+  }>({
     name: '',
     trigger_type: 'inactivity',
     message_title: '',
     message_body: '',
-    condition: { days: 3 },
+    condition: { hours_inactive: 24 },
     schedule_time: '',
     is_active: true,
   });
@@ -59,7 +77,6 @@ export default function AdminNotifications() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // Cast to our interface
       const typedData = (data || []).map(t => ({
         ...t,
         condition: (t.condition || {}) as Record<string, unknown>,
@@ -80,15 +97,17 @@ export default function AdminNotifications() {
   const handleOpenModal = (trigger?: NotificationTrigger) => {
     if (trigger) {
       setEditingTrigger(trigger);
-      const conditionDays = typeof trigger.condition === 'object' && trigger.condition !== null 
-        ? (trigger.condition as Record<string, unknown>).days as number || 3
-        : 3;
+      const typeInfo = getTriggerTypeInfo(trigger.trigger_type);
+      const conditionValue = typeInfo.conditionKey 
+        ? (trigger.condition as Record<string, unknown>)[typeInfo.conditionKey] as number || typeInfo.defaultValue
+        : null;
+      
       setFormData({
         name: trigger.name,
         trigger_type: trigger.trigger_type,
         message_title: trigger.message_title,
         message_body: trigger.message_body,
-        condition: { days: conditionDays },
+        condition: typeInfo.conditionKey ? { [typeInfo.conditionKey]: conditionValue } : {},
         schedule_time: trigger.schedule_time || '',
         is_active: trigger.is_active,
       });
@@ -99,7 +118,7 @@ export default function AdminNotifications() {
         trigger_type: 'inactivity',
         message_title: '',
         message_body: '',
-        condition: { days: 3 },
+        condition: { hours_inactive: 24 },
         schedule_time: '',
         is_active: true,
       });
@@ -196,8 +215,39 @@ export default function AdminNotifications() {
     }
   };
 
+  const handleTestTrigger = async () => {
+    setTestingTrigger('cron');
+    try {
+      const { data, error } = await supabase.functions.invoke('notification-cron', {
+        body: { test: true }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Notification cron executed: ${data?.notifications_sent || 0} notifications sent`);
+    } catch (error: any) {
+      console.error('Error testing trigger:', error);
+      toast.error(error.message || 'Failed to test notification cron');
+    } finally {
+      setTestingTrigger(null);
+    }
+  };
+
   const getTriggerTypeInfo = (type: string) => 
     TRIGGER_TYPES.find(t => t.value === type) || TRIGGER_TYPES[0];
+
+  const handleTriggerTypeChange = (type: string) => {
+    const typeInfo = TRIGGER_TYPES.find(t => t.value === type);
+    const newCondition = typeInfo?.conditionKey 
+      ? { [typeInfo.conditionKey]: typeInfo.defaultValue }
+      : {};
+    
+    setFormData(prev => ({
+      ...prev,
+      trigger_type: type,
+      condition: newCondition,
+    }));
+  };
 
   return (
     <AdminLayout>
@@ -213,10 +263,39 @@ export default function AdminNotifications() {
               Configure automated notification triggers for users
             </p>
           </div>
-          <Button onClick={() => handleOpenModal()} className="shrink-0">
-            <Plus size={16} className="mr-2" />
-            Add Trigger
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleTestTrigger}
+              disabled={testingTrigger === 'cron'}
+            >
+              {testingTrigger === 'cron' ? (
+                <Loader2 size={16} className="mr-2 animate-spin" />
+              ) : (
+                <Zap size={16} className="mr-2" />
+              )}
+              Test Now
+            </Button>
+            <Button onClick={() => handleOpenModal()} className="shrink-0">
+              <Plus size={16} className="mr-2" />
+              Add Trigger
+            </Button>
+          </div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Info className="text-primary mt-0.5 shrink-0" size={18} />
+            <div className="text-sm">
+              <p className="font-medium text-foreground">How it works</p>
+              <p className="text-muted-foreground mt-1">
+                Notifications are checked every 30 minutes. When a trigger condition is met, 
+                a notification is sent to the user's inbox. Each user only receives one notification 
+                per trigger type per day.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Triggers List */}
@@ -249,7 +328,7 @@ export default function AdminNotifications() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="font-semibold truncate">{trigger.name}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           trigger.is_active 
@@ -259,21 +338,37 @@ export default function AdminNotifications() {
                           {trigger.is_active ? 'Active' : 'Paused'}
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {typeInfo.label}
-                      </p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className="text-sm text-muted-foreground mb-2 cursor-help">
+                              {typeInfo.label}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{typeInfo.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <div className="bg-muted/50 p-3 rounded-lg">
                         <p className="text-sm font-medium">{trigger.message_title}</p>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           {trigger.message_body}
                         </p>
                       </div>
-                      {trigger.schedule_time && (
-                        <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                          <Clock size={12} />
-                          Scheduled: {trigger.schedule_time}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                        {trigger.schedule_time && (
+                          <span className="flex items-center gap-1">
+                            <Clock size={12} />
+                            Scheduled: {trigger.schedule_time}
+                          </span>
+                        )}
+                        {typeInfo.conditionKey && trigger.condition[typeInfo.conditionKey] && (
+                          <span className="flex items-center gap-1">
+                            {typeInfo.conditionLabel}: {String(trigger.condition[typeInfo.conditionKey])}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
@@ -330,7 +425,7 @@ export default function AdminNotifications() {
               <select
                 id="trigger_type"
                 value={formData.trigger_type}
-                onChange={(e) => setFormData(prev => ({ ...prev, trigger_type: e.target.value }))}
+                onChange={(e) => handleTriggerTypeChange(e.target.value)}
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
                 {TRIGGER_TYPES.map(type => (
@@ -342,19 +437,23 @@ export default function AdminNotifications() {
               </p>
             </div>
 
-            {formData.trigger_type !== 'broadcast' && (
+            {getTriggerTypeInfo(formData.trigger_type).conditionKey && (
               <div>
-                <Label htmlFor="days">Days Threshold</Label>
+                <Label htmlFor="condition_value">
+                  {getTriggerTypeInfo(formData.trigger_type).conditionLabel}
+                </Label>
                 <Input
-                  id="days"
+                  id="condition_value"
                   type="number"
                   min="1"
-                  value={formData.condition.days || ''}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    condition: { ...prev.condition, days: parseInt(e.target.value) || 0 }
-                  }))}
-                  placeholder="3"
+                  value={formData.condition[getTriggerTypeInfo(formData.trigger_type).conditionKey!] as number || ''}
+                  onChange={(e) => {
+                    const key = getTriggerTypeInfo(formData.trigger_type).conditionKey!;
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      condition: { [key]: parseInt(e.target.value) || 0 }
+                    }));
+                  }}
                 />
               </div>
             )}
@@ -389,7 +488,7 @@ export default function AdminNotifications() {
                 onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Leave empty to send immediately when triggered
+                Leave empty to trigger whenever the condition is met
               </p>
             </div>
 

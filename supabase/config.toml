@@ -53,3 +53,9 @@ verify_jwt = true
 
 [functions.notify-ticket-reply]
 verify_jwt = true
+
+[functions.notify-admin-ticket]
+verify_jwt = false
+
+[functions.admin-send-email]
+verify_jwt = true
