@@ -215,6 +215,7 @@ export function FloatingActionHub({
         {/* Toggle Button */}
         <button
           onClick={handleToggle}
+          data-tutorial="floating-hub"
           className={`p-3 rounded-full shadow-lg transition-all duration-300 ${
             isOpen 
               ? 'bg-muted text-muted-foreground rotate-45' 
