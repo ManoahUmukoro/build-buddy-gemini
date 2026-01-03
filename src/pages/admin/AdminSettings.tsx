@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Save, Loader2, Settings, Bell, Shield, ToggleLeft, Megaphone, Plus, Trash2, Palette, MessageSquare } from 'lucide-react';
+import { Save, Loader2, Settings, Bell, Shield, ToggleLeft, Megaphone, Plus, Trash2, Palette, MessageSquare, History, Edit, Star } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -18,6 +19,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Json } from '@/integrations/supabase/types';
 
 interface MaintenanceConfig {
   enabled: boolean;
@@ -69,6 +78,15 @@ interface Announcement {
   priority: number;
 }
 
+interface ChangelogEntry {
+  id: string;
+  version: string;
+  title: string;
+  changes: Json;
+  is_major: boolean | null;
+  release_date: string;
+}
+
 export default function AdminSettings() {
   const [settings, setSettings] = useState<AppSettings>({
     maintenance_mode: {
@@ -107,6 +125,10 @@ export default function AdminSettings() {
   });
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [newAnnouncement, setNewAnnouncement] = useState({ title: '', message: '' });
+  const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
+  const [editingChangelog, setEditingChangelog] = useState<ChangelogEntry | null>(null);
+  const [newChangelog, setNewChangelog] = useState({ version: '', title: '', changes: '', is_major: false });
+  const [changelogDialogOpen, setChangelogDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -116,13 +138,15 @@ export default function AdminSettings() {
 
   async function fetchData() {
     try {
-      const [settingsRes, announcementsRes] = await Promise.all([
+      const [settingsRes, announcementsRes, changelogRes] = await Promise.all([
         supabase.from('admin_settings').select('key, value'),
         supabase.from('announcements').select('*').order('priority'),
+        supabase.from('app_changelog').select('*').order('release_date', { ascending: false }),
       ]);
 
       if (settingsRes.error) throw settingsRes.error;
       if (announcementsRes.error) throw announcementsRes.error;
+      if (changelogRes.error) throw changelogRes.error;
 
       const settingsMap: Record<string, any> = {};
       settingsRes.data?.forEach(item => {
@@ -147,6 +171,7 @@ export default function AdminSettings() {
       });
 
       setAnnouncements(announcementsRes.data || []);
+      setChangelog(changelogRes.data || []);
     } catch (err) {
       console.error('Error fetching settings:', err);
       toast.error('Failed to load settings');
@@ -246,6 +271,81 @@ export default function AdminSettings() {
     }
   }
 
+  // Changelog management
+  async function saveChangelog() {
+    const changes = newChangelog.changes.split('\n').filter(c => c.trim());
+    
+    if (!newChangelog.version || !newChangelog.title || changes.length === 0) {
+      toast.error('Please fill in version, title, and at least one change');
+      return;
+    }
+
+    // Validate version format (simple semver check)
+    if (!/^\d+\.\d+(\.\d+)?$/.test(newChangelog.version)) {
+      toast.error('Version must be in format X.Y or X.Y.Z (e.g., 1.0 or 1.0.0)');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      if (editingChangelog) {
+        const { error } = await supabase
+          .from('app_changelog')
+          .update({
+            version: newChangelog.version,
+            title: newChangelog.title,
+            changes: changes,
+            is_major: newChangelog.is_major,
+            release_date: new Date().toISOString().split('T')[0],
+          })
+          .eq('id', editingChangelog.id);
+
+        if (error) throw error;
+        toast.success('Changelog updated');
+      } else {
+        const { error } = await supabase
+          .from('app_changelog')
+          .insert({
+            version: newChangelog.version,
+            title: newChangelog.title,
+            changes: changes,
+            is_major: newChangelog.is_major,
+            release_date: new Date().toISOString().split('T')[0],
+          });
+
+        if (error) throw error;
+        toast.success('Changelog entry added');
+      }
+
+      setNewChangelog({ version: '', title: '', changes: '', is_major: false });
+      setEditingChangelog(null);
+      setChangelogDialogOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving changelog:', err);
+      toast.error('Failed to save changelog');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteChangelog(id: string) {
+    try {
+      const { error } = await supabase
+        .from('app_changelog')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Changelog entry deleted');
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting changelog:', err);
+      toast.error('Failed to delete changelog');
+    }
+  }
+
   if (loading) {
     return (
       <AdminLayout>
@@ -275,7 +375,7 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7 h-auto gap-1 p-1">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-8 h-auto gap-1 p-1">
             <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Settings className="h-4 w-4" />
               <span className="hidden xs:inline sm:inline">General</span>
@@ -303,6 +403,10 @@ export default function AdminSettings() {
             <TabsTrigger value="announcements" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
               <Megaphone className="h-4 w-4" />
               <span className="hidden xs:inline sm:inline">Announce</span>
+            </TabsTrigger>
+            <TabsTrigger value="changelog" className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <History className="h-4 w-4" />
+              <span className="hidden xs:inline sm:inline">Changelog</span>
             </TabsTrigger>
           </TabsList>
 
@@ -667,6 +771,88 @@ export default function AdminSettings() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Changelog Tab */}
+          <TabsContent value="changelog">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> App Changelog</CardTitle>
+                    <CardDescription>Manage "What's New" entries shown to users</CardDescription>
+                  </div>
+                  <Dialog open={changelogDialogOpen} onOpenChange={setChangelogDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" onClick={() => { setEditingChangelog(null); setNewChangelog({ version: '', title: '', changes: '', is_major: false }); }}>
+                        <Plus className="h-4 w-4 mr-2" /> Add Entry
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>{editingChangelog ? 'Edit Changelog' : 'New Changelog Entry'}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Version</Label>
+                            <Input placeholder="1.2.0" value={newChangelog.version} onChange={(e) => setNewChangelog({ ...newChangelog, version: e.target.value })} />
+                          </div>
+                          <div className="flex items-center gap-2 pt-6">
+                            <Switch checked={newChangelog.is_major} onCheckedChange={(c) => setNewChangelog({ ...newChangelog, is_major: c })} />
+                            <Label className="flex items-center gap-1"><Star size={14} /> Major Release</Label>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Title</Label>
+                          <Input placeholder="New Features & Improvements" value={newChangelog.title} onChange={(e) => setNewChangelog({ ...newChangelog, title: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Changes (one per line)</Label>
+                          <Textarea rows={5} placeholder="Added new AI chatbot&#10;Fixed login bug&#10;Improved performance" value={newChangelog.changes} onChange={(e) => setNewChangelog({ ...newChangelog, changes: e.target.value })} />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setChangelogDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={saveChangelog} disabled={saving}>
+                            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {changelog.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No changelog entries yet.</p>
+                  ) : changelog.map((entry) => (
+                    <div key={entry.id} className="p-4 border border-border rounded-xl bg-muted/30">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={entry.is_major ? 'default' : 'secondary'}>v{entry.version}</Badge>
+                            {entry.is_major && <Star size={14} className="text-warning fill-warning" />}
+                          </div>
+                          <h4 className="font-medium">{entry.title}</h4>
+                          <p className="text-xs text-muted-foreground">{new Date(entry.release_date).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setEditingChangelog(entry);
+                            const changesArr = Array.isArray(entry.changes) ? entry.changes : [];
+                            setNewChangelog({ version: entry.version, title: entry.title, changes: changesArr.join('\n'), is_major: entry.is_major || false });
+                            setChangelogDialogOpen(true);
+                          }}><Edit size={14} /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => deleteChangelog(entry.id)}><Trash2 size={14} className="text-destructive" /></Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

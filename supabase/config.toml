@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.password-reset]
 verify_jwt = false
 
+[functions.password-reset-update]
+verify_jwt = false
+
 [functions.notification-cron]
 verify_jwt = false
 
@@ -46,4 +49,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.parse-bank-statement]
+verify_jwt = true
+
+[functions.notify-ticket-reply]
 verify_jwt = true

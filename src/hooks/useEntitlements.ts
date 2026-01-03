@@ -12,6 +12,7 @@ interface PlanFeatures {
   max_transactions: number;
   exports: boolean;
   habit_suggestions: boolean;
+  bank_statement_import: boolean;
 }
 
 interface GlobalFeatures {
@@ -42,6 +43,7 @@ interface Entitlements {
   canExport: boolean;
   canReceiveDailyDigest: boolean;
   canReceiveWeeklyDigest: boolean;
+  canImportBankStatement: boolean;
   // Limits
   maxSystems: number;
   maxTransactions: number;
@@ -181,6 +183,7 @@ export function useEntitlements(): Entitlements {
       receipt_scanning: false,   // AI - Pro only
       auto_categorize: false,    // AI - Pro only
       habit_suggestions: false,  // AI - Pro only
+      bank_statement_import: false, // AI - Pro only
       daily_digest: true,        // FREE
       weekly_digest: true,       // FREE
       max_systems: -1,           // UNLIMITED
@@ -192,6 +195,7 @@ export function useEntitlements(): Entitlements {
       receipt_scanning: true,
       auto_categorize: true,
       habit_suggestions: true,
+      bank_statement_import: true,
       daily_digest: true,
       weekly_digest: true,
       max_systems: -1,
@@ -220,6 +224,7 @@ export function useEntitlements(): Entitlements {
   const canAutoCategorize = isGlobalFeatureEnabled('auto_categorize') && isFeatureEnabled('auto_categorize');
   const canUseHabitSuggestions = isGlobalFeatureEnabled('habit_suggestions') && isFeatureEnabled('habit_suggestions');
   const canExport = isFeatureEnabled('exports');
+  const canImportBankStatement = isFeatureEnabled('bank_statement_import');
   
   // Digest emails also check notification toggles
   const canReceiveDailyDigest = 
@@ -242,6 +247,7 @@ export function useEntitlements(): Entitlements {
     canAutoCategorize,
     canUseHabitSuggestions,
     canExport,
+    canImportBankStatement,
     canReceiveDailyDigest,
     canReceiveWeeklyDigest,
     maxSystems: currentPlanFeatures?.max_systems ?? -1,

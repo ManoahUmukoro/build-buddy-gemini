@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Download, Upload, Check, User, Bell, 
-  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown, Clock, LogOut
+  Palette, Globe, Trash2, AlertTriangle, Loader2, Camera, Mail, Crown, Clock, LogOut, History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ import {
   showTestNotification,
   initializeNotifications 
 } from '@/lib/notificationScheduler';
+import { ChangelogHistoryModal } from '@/components/ChangelogHistoryModal';
 
 interface SettingsTabProps {
   onBackup: () => void;
@@ -61,6 +62,7 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
   const [userPlan, setUserPlan] = useState<string>('free');
   const [dailyCheckinEnabled, setDailyCheckinEnabled] = useState(false);
   const [settingUpNotifications, setSettingUpNotifications] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   // Initialize notifications on mount
   useEffect(() => {
@@ -368,6 +370,22 @@ export function SettingsTab({ onBackup, onRestore }: SettingsTabProps) {
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* What's New */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History size={18} />
+                What's New
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">View the latest updates and features</p>
+              <Button variant="outline" onClick={() => setChangelogOpen(true)}>
+                View Changelog
+              </Button>
             </CardContent>
           </Card>
 

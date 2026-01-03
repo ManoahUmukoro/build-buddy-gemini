@@ -220,26 +220,20 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      // Use Supabase password reset with magic link approach
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      // Use custom password reset edge function to update password via admin API
+      const { data, error } = await supabase.functions.invoke('password-reset-update', {
+        body: { email, newPassword }
+      });
       
-      if (error) {
-        // If user is not logged in, we need a different approach
-        // Since we verified OTP, we'll sign them up with new password
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password: newPassword
-        });
-        
-        if (signInError) {
-          throw new Error('Unable to update password. Please try signing up again.');
-        }
-      }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       
-      toast.success('Password updated! Redirecting...');
+      toast.success('Password updated! You can now sign in.');
       setShowResetPassword(false);
-      navigate('/');
+      setNewPassword('');
+      setIsLogin(true);
     } catch (error: any) {
+      console.error('Password reset error:', error);
       toast.error(error.message || 'Failed to reset password');
     } finally {
       setLoading(false);

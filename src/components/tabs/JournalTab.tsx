@@ -176,9 +176,9 @@ export function JournalTab({
             <button 
               type="button" 
               onClick={() => setIsJournalChatOpen(true)} 
-              className="px-3 md:px-4 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 flex items-center gap-1.5 md:gap-2 font-medium text-sm"
+              className="px-3 md:px-4 bg-pink-500/10 text-pink-500 border border-pink-500/20 rounded-lg hover:bg-pink-500/20 flex items-center gap-1.5 md:gap-2 font-medium text-sm"
             >
-              <MessageCircle size={14} className="md:w-[18px] md:h-[18px]" /> <span className="hidden sm:inline">Chat with</span> Buddy
+              <MessageCircle size={14} className="md:w-[18px] md:h-[18px]" /> <span className="hidden sm:inline">Chat with</span> Meyra
             </button>
           </div>
         </form>
@@ -244,14 +244,15 @@ export function JournalTab({
       <Modal 
         isOpen={isJournalChatOpen} 
         onClose={() => setIsJournalChatOpen(false)} 
-        title="Session with Buddy" 
+        title="Session with Meyra" 
         maxWidth="max-w-2xl"
       >
         <ChatInterface 
           history={journalChatHistory} 
           onSend={onJournalChat} 
           isLoading={isSavingJournal} 
-          personaName="Buddy" 
+          personaName="Meyra" 
+          personaType="meyra"
           placeholder="What's on your mind?" 
         />
       </Modal>
