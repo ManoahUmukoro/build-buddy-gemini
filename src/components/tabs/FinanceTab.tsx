@@ -501,7 +501,7 @@ export function FinanceTab({
                 <Wallet size={18} className="shrink-0" /> Expenses
               </div>
               <div className="text-lg md:text-3xl font-bold text-destructive truncate">
-                {formatCurrency(totalIncome - balance, currency)}
+                {formatCurrency(totalExpense, currency)}
               </div>
               <span className="text-xs text-destructive/70 font-normal mt-1 block">This month</span>
             </div>
@@ -1069,6 +1069,7 @@ export function FinanceTab({
           isLoading={isAnalyzingFinance} 
           placeholder="Ask about budgeting, savings, or investments..." 
           personaName="Nexer"
+          personaType="nexer"
         />
       </Modal>
 
