@@ -61,41 +61,43 @@ interface PlanFeatures {
   habit_suggestions: boolean;
 }
 
+// NEW: AI-Only Pro Model - only AI features are Pro-locked
 const DEFAULT_PLAN_FEATURES: Record<string, PlanFeatures> = {
   free: {
-    ai_chat: false,
-    receipt_scanning: false,
-    auto_categorize: false,
-    daily_digest: false,
-    weekly_digest: false,
-    max_systems: 3,
-    max_transactions: 50,
-    exports: false,
-    habit_suggestions: false,
+    ai_chat: false,           // AI - Pro only
+    receipt_scanning: false,   // AI - Pro only
+    auto_categorize: false,    // AI - Pro only
+    habit_suggestions: false,  // AI - Pro only
+    daily_digest: true,        // FREE
+    weekly_digest: true,       // FREE
+    max_systems: -1,           // UNLIMITED
+    max_transactions: -1,      // UNLIMITED
+    exports: true,             // FREE
   },
   pro: {
     ai_chat: true,
     receipt_scanning: true,
     auto_categorize: true,
+    habit_suggestions: true,
     daily_digest: true,
     weekly_digest: true,
     max_systems: -1,
     max_transactions: -1,
     exports: true,
-    habit_suggestions: true,
   },
 };
 
+// Feature labels with AI indicators
 const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
-  ai_chat: 'AI Chat Assistant',
-  receipt_scanning: 'Receipt Scanning',
-  auto_categorize: 'Auto-Categorize',
+  ai_chat: '🤖 AI Chat Assistant',
+  receipt_scanning: '🤖 Receipt Scanning (AI)',
+  auto_categorize: '🤖 Auto-Categorize (AI)',
+  habit_suggestions: '🤖 AI Habit Suggestions',
   daily_digest: 'Daily Digest Emails',
   weekly_digest: 'Weekly Digest Emails',
   max_systems: 'Max Goals/Systems',
   max_transactions: 'Max Transactions',
   exports: 'Data Exports',
-  habit_suggestions: 'AI Habit Suggestions',
 };
 
 export default function AdminBilling() {

@@ -2,8 +2,9 @@ import { ReactNode } from 'react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradePrompt } from './UpgradePrompt';
 
+// Only AI features require Pro - simplify the feature list
 interface FeatureGateProps {
-  feature: 'ai_chat' | 'receipt_scanning' | 'auto_categorize' | 'habit_suggestions' | 'exports' | 'daily_digest' | 'weekly_digest';
+  feature: 'ai_chat' | 'receipt_scanning' | 'auto_categorize' | 'habit_suggestions';
   children: ReactNode;
   fallback?: ReactNode;
   showUpgradePrompt?: boolean;
@@ -21,9 +22,6 @@ export function FeatureGate({
     canScanReceipts, 
     canAutoCategorize, 
     canUseHabitSuggestions,
-    canExport,
-    canReceiveDailyDigest,
-    canReceiveWeeklyDigest,
     isPro
   } = useEntitlements();
 
@@ -36,9 +34,6 @@ export function FeatureGate({
     receipt_scanning: canScanReceipts,
     auto_categorize: canAutoCategorize,
     habit_suggestions: canUseHabitSuggestions,
-    exports: canExport,
-    daily_digest: canReceiveDailyDigest,
-    weekly_digest: canReceiveWeeklyDigest,
   };
 
   const hasAccess = featureMap[feature] ?? false;

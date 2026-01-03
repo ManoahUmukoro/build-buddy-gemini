@@ -81,7 +81,6 @@ export function useEntitlements(): Entitlements {
       ]);
 
       if (userPlanRes.error) {
-        // Only log if not a network error (reduces console noise on mobile)
         if (!userPlanRes.error.message?.includes('Failed to fetch')) {
           console.error('Error fetching user plan:', userPlanRes.error);
         }
@@ -110,7 +109,6 @@ export function useEntitlements(): Entitlements {
         });
       }
     } catch (err: unknown) {
-      // Silently handle network errors (common on mobile)
       const message = err instanceof Error ? err.message : String(err);
       if (!message.includes('Failed to fetch')) {
         console.error('Error fetching entitlements:', err);
@@ -175,29 +173,30 @@ export function useEntitlements(): Entitlements {
 
   const isPro = userPlan === 'pro' && planStatus === 'active';
   
-  // Default plan features if not configured in admin_settings
+  // NEW: AI-Only Pro Model - everything else is free
+  // Only AI features are locked behind Pro
   const defaultPlanFeatures: Record<string, PlanFeatures> = {
     free: {
-      ai_chat: false,
-      receipt_scanning: false,
-      auto_categorize: false,
-      daily_digest: false,
-      weekly_digest: false,
-      max_systems: 3,
-      max_transactions: 50,
-      exports: false,
-      habit_suggestions: false,
+      ai_chat: false,           // AI - Pro only
+      receipt_scanning: false,   // AI - Pro only
+      auto_categorize: false,    // AI - Pro only
+      habit_suggestions: false,  // AI - Pro only
+      daily_digest: true,        // FREE
+      weekly_digest: true,       // FREE
+      max_systems: -1,           // UNLIMITED
+      max_transactions: -1,      // UNLIMITED
+      exports: true,             // FREE
     },
     pro: {
       ai_chat: true,
       receipt_scanning: true,
       auto_categorize: true,
+      habit_suggestions: true,
       daily_digest: true,
       weekly_digest: true,
-      max_systems: -1, // unlimited
-      max_transactions: -1, // unlimited
+      max_systems: -1,
+      max_transactions: -1,
       exports: true,
-      habit_suggestions: true,
     },
   };
   
@@ -211,7 +210,7 @@ export function useEntitlements(): Entitlements {
 
   // Helper to check if a global feature toggle is enabled (default to true if not configured)
   const isGlobalFeatureEnabled = (feature: keyof GlobalFeatures): boolean => {
-    if (!globalFeatures) return true; // Default to enabled if not configured
+    if (!globalFeatures) return true;
     return globalFeatures[feature] !== false;
   };
 
@@ -224,13 +223,13 @@ export function useEntitlements(): Entitlements {
   
   // Digest emails also check notification toggles
   const canReceiveDailyDigest = 
-    (globalNotifications?.email_enabled ?? false) && 
-    (globalNotifications?.daily_digest ?? false) && 
+    (globalNotifications?.email_enabled ?? true) && 
+    (globalNotifications?.daily_digest ?? true) && 
     isFeatureEnabled('daily_digest');
   
   const canReceiveWeeklyDigest = 
-    (globalNotifications?.email_enabled ?? false) && 
-    (globalNotifications?.weekly_digest ?? false) && 
+    (globalNotifications?.email_enabled ?? true) && 
+    (globalNotifications?.weekly_digest ?? true) && 
     isFeatureEnabled('weekly_digest');
 
   return {
@@ -245,8 +244,8 @@ export function useEntitlements(): Entitlements {
     canExport,
     canReceiveDailyDigest,
     canReceiveWeeklyDigest,
-    maxSystems: currentPlanFeatures?.max_systems ?? 3,
-    maxTransactions: currentPlanFeatures?.max_transactions ?? 50,
+    maxSystems: currentPlanFeatures?.max_systems ?? -1,
+    maxTransactions: currentPlanFeatures?.max_transactions ?? -1,
     isFeatureEnabled,
     isGlobalFeatureEnabled,
     refetch: fetchEntitlements,
