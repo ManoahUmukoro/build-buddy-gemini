@@ -14,6 +14,17 @@ interface TaskReminderRequest {
 }
 
 /**
+ * Get time-appropriate greeting
+ */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 4 && hour < 12) return "Good Morning";
+  if (hour >= 12 && hour < 16) return "Good Afternoon";
+  if (hour >= 16 && hour < 21) return "Good Evening";
+  return "Hi";
+}
+
+/**
  * Replaces template variables with actual values
  */
 function replaceVariables(template: string, variables: Record<string, string>): string {
@@ -35,7 +46,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured - skipping email");
+      console.error("[send-task-reminder] RESEND_API_KEY not configured - skipping email");
       return new Response(JSON.stringify({ success: false, error: "Email not configured" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,12 +71,12 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (notifError) {
-      console.error("Error fetching notification settings:", notifError);
+      console.error("[send-task-reminder] Error fetching notification settings:", notifError);
     }
 
     const notifications = notificationSettings?.value || {};
     if (notifications.email_enabled === false || notifications.task_reminders === false) {
-      console.log("Task reminders are disabled in admin settings");
+      console.log("[send-task-reminder] Task reminders are disabled in admin settings");
       return new Response(JSON.stringify({ success: false, message: "Task reminders disabled" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -82,14 +93,18 @@ const handler = async (req: Request): Promise<Response> => {
     let emailSubject: string;
     let emailBody: string;
 
+    const name = userName || userEmail.split('@')[0];
+    const greeting = getGreeting();
+    const appUrl = supabaseUrl.replace('.supabase.co', '.lovable.app').replace('https://', 'https://');
+
     if (templateError || !template) {
-      console.log("Email template 'task_reminder' not found - using fallback template");
+      console.log("[send-task-reminder] Email template 'task_reminder' not found - using fallback template");
       
-      // Fallback template
+      // Fallback template with greeting
       emailSubject = `⏰ Reminder: ${taskText}`;
       emailBody = `
         <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #6366f1; margin-bottom: 16px;">Hey ${userName || userEmail.split('@')[0]}! 👋</h2>
+          <h2 style="color: #6366f1; margin-bottom: 16px;">${greeting}, ${name}! 👋</h2>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">
             You have a task scheduled for <strong>${taskTime}</strong>:
           </p>
@@ -107,21 +122,24 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     } else {
       if (!template.is_active) {
-        console.log("Task reminder template is inactive");
+        console.log("[send-task-reminder] Task reminder template is inactive");
         return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const name = userName || userEmail.split('@')[0];
-
-      // Replace variables in template
-      const variables = {
+      // Replace variables in template - comprehensive set
+      const variables: Record<string, string> = {
         name,
+        greeting,
         task_text: taskText,
+        task_name: taskText,
         task_time: taskTime,
         email: userEmail,
+        date: new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        day_of_week: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+        app_url: appUrl,
       };
 
       emailSubject = replaceVariables(template.subject, variables);
@@ -136,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     const config = emailConfig?.value || {};
-    const fromEmail = config.from_email || 'onboarding@resend.dev';
+    const fromEmail = config.from_email || 'lifeos@webnexer.com';
     const fromName = config.from_name || 'LifeOS';
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -154,14 +172,14 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const emailResult = await emailResponse.json();
-    console.log("Task reminder email sent:", emailResult);
+    console.log("[send-task-reminder] Task reminder email sent:", emailResult);
 
     return new Response(JSON.stringify({ success: true, emailResult }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Error in send-task-reminder:", error);
+    console.error("[send-task-reminder] Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

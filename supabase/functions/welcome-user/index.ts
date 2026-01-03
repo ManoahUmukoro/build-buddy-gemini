@@ -7,9 +7,32 @@ const corsHeaders = {
 };
 
 interface WelcomeRequest {
-  userId: string;
+  userId?: string;
   email: string;
   displayName?: string;
+}
+
+/**
+ * Get time-appropriate greeting
+ */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 4 && hour < 12) return "Good Morning";
+  if (hour >= 12 && hour < 16) return "Good Afternoon";
+  if (hour >= 16 && hour < 21) return "Good Evening";
+  return "Hi";
+}
+
+/**
+ * Get formatted date
+ */
+function getFormattedDate(): string {
+  return new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
 }
 
 /**
@@ -34,7 +57,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured - skipping email");
+      console.error("[welcome-user] RESEND_API_KEY not configured - skipping email");
       return new Response(JSON.stringify({ success: false, error: "Email not configured" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -59,12 +82,12 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (notifError) {
-      console.error("Error fetching notification settings:", notifError);
+      console.error("[welcome-user] Error fetching notification settings:", notifError);
     }
 
     const notifications = notificationSettings?.value || {};
     if (notifications.email_enabled === false || notifications.welcome_emails === false) {
-      console.log("Welcome emails are disabled in admin settings");
+      console.log("[welcome-user] Welcome emails are disabled in admin settings");
       return new Response(JSON.stringify({ success: false, message: "Welcome emails disabled" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (templateError || !template) {
-      console.error("Email template 'welcome_user' not found in database - skipping email");
+      console.error("[welcome-user] Email template 'welcome_user' not found in database - skipping email");
       return new Response(JSON.stringify({ 
         success: false, 
         error: "Email template not configured. Please add 'welcome_user' template in admin." 
@@ -90,7 +113,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!template.is_active) {
-      console.log("Welcome email template is inactive");
+      console.log("[welcome-user] Welcome email template is inactive");
       return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -103,12 +126,17 @@ const handler = async (req: Request): Promise<Response> => {
     const replyTo = 'support@webnexer.com';
 
     const name = displayName || email.split('@')[0];
+    const appUrl = supabaseUrl.replace('.supabase.co', '.lovable.app').replace('https://', 'https://');
 
-    // Replace variables in template
-    const variables = {
+    // Replace variables in template - comprehensive set
+    const variables: Record<string, string> = {
       name,
       email,
+      greeting: getGreeting(),
+      date: getFormattedDate(),
+      day_of_week: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
       user_id: userId || '',
+      app_url: appUrl,
     };
 
     const subject = replaceVariables(template.subject, variables);
@@ -130,14 +158,14 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const result = await emailResponse.json();
-    console.log("Welcome email sent:", result);
+    console.log("[welcome-user] Welcome email sent:", result);
 
     return new Response(JSON.stringify({ success: true, result }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Error in welcome-user:", error);
+    console.error("[welcome-user] Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

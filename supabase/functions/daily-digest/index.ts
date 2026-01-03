@@ -7,6 +7,36 @@ const corsHeaders = {
 };
 
 /**
+ * Get time-appropriate greeting
+ */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 4 && hour < 12) return "Good Morning";
+  if (hour >= 12 && hour < 16) return "Good Afternoon";
+  if (hour >= 16 && hour < 21) return "Good Evening";
+  return "Hi"; // Late night neutral greeting
+}
+
+/**
+ * Get formatted date
+ */
+function getFormattedDate(): string {
+  return new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+/**
+ * Get day of week
+ */
+function getDayOfWeek(): string {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+/**
  * Replaces template variables with actual values
  */
 function replaceVariables(template: string, variables: Record<string, string>): string {
@@ -28,7 +58,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured");
+      console.error("[daily-digest] RESEND_API_KEY not configured");
       return new Response(JSON.stringify({ error: "Email not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -46,7 +76,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const notifications = notificationSettings?.value || {};
     if (notifications.email_enabled === false || notifications.daily_digest === false) {
-      console.log("Daily digest is disabled in admin settings");
+      console.log("[daily-digest] Daily digest is disabled in admin settings");
       return new Response(JSON.stringify({ success: false, message: "Daily digest disabled" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (templateError || !template) {
-      console.error("Email template 'daily_digest' not found in database - skipping all emails");
+      console.error("[daily-digest] Email template 'daily_digest' not found in database");
       return new Response(JSON.stringify({ 
         success: false, 
         error: "Email template not configured. Please add 'daily_digest' template in admin." 
@@ -72,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!template.is_active) {
-      console.log("Daily digest template is inactive");
+      console.log("[daily-digest] Daily digest template is inactive");
       return new Response(JSON.stringify({ success: false, message: "Template inactive" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -96,10 +126,11 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     const config = emailConfig?.value || {};
-    const fromEmail = config.from_email || 'onboarding@resend.dev';
+    const fromEmail = config.from_email || 'lifeos@webnexer.com';
     const fromName = config.from_name || 'LifeOS';
 
     const today = new Date().toISOString().split('T')[0];
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Get all users with their profiles
     const { data: profiles, error: profilesError } = await supabase
@@ -107,11 +138,11 @@ const handler = async (req: Request): Promise<Response> => {
       .select('user_id, display_name');
 
     if (profilesError) {
-      console.error("Error fetching profiles:", profilesError);
+      console.error("[daily-digest] Error fetching profiles:", profilesError);
       throw profilesError;
     }
 
-    console.log(`Processing daily digest for ${profiles?.length || 0} users`);
+    console.log(`[daily-digest] Processing daily digest for ${profiles?.length || 0} users`);
     let emailsSent = 0;
     let skippedDueToEntitlement = 0;
 
@@ -121,7 +152,7 @@ const handler = async (req: Request): Promise<Response> => {
         const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(profile.user_id);
         
         if (userError || !user?.email) {
-          console.log(`Skipping user ${profile.user_id}: no email found`);
+          console.log(`[daily-digest] Skipping user ${profile.user_id}: no email found`);
           continue;
         }
 
@@ -136,20 +167,23 @@ const handler = async (req: Request): Promise<Response> => {
         const planConfig = planFeatures[plan] || planFeatures.free || {};
         
         if (planConfig.daily_digest === false) {
-          console.log(`Skipping user ${profile.user_id}: daily_digest not available on ${plan} plan`);
+          console.log(`[daily-digest] Skipping user ${profile.user_id}: daily_digest not available on ${plan} plan`);
           skippedDueToEntitlement++;
           continue;
         }
 
         // Get today's tasks
-        const { data: tasks } = await supabase
+        const { data: todayTasks } = await supabase
           .from('tasks')
           .select('*')
           .eq('user_id', profile.user_id)
-          .eq('day', today)
-          .eq('done', false);
+          .eq('day', today);
 
-        // Get incomplete habits for today
+        const tasksTotal = todayTasks?.length || 0;
+        const tasksCompleted = todayTasks?.filter(t => t.done).length || 0;
+        const tasksPending = tasksTotal - tasksCompleted;
+
+        // Get habits for today
         const { data: habits } = await supabase
           .from('habits')
           .select('id, name')
@@ -163,27 +197,98 @@ const handler = async (req: Request): Promise<Response> => {
           .eq('completed', true);
 
         const completedHabitIds = new Set(completedHabits?.map(h => h.habit_id) || []);
-        const pendingHabits = habits?.filter(h => !completedHabitIds.has(h.id)) || [];
+        const habitsTotal = habits?.length || 0;
+        const habitsCompleted = completedHabits?.length || 0;
+        const habitsPending = habitsTotal - habitsCompleted;
 
-        // Get current balance
-        const { data: transactions } = await supabase
+        // Get current balance and weekly finances
+        const { data: allTransactions } = await supabase
           .from('transactions')
-          .select('amount, type')
+          .select('amount, type, date')
           .eq('user_id', profile.user_id);
 
-        const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) || 0;
-        const totalExpense = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) || 0;
+        const totalIncome = allTransactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) || 0;
+        const totalExpense = allTransactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) || 0;
         const balance = totalIncome - totalExpense;
 
-        const displayName = profile.display_name || user.email.split('@')[0];
+        // Weekly finances
+        const weeklyTransactions = allTransactions?.filter(t => t.date >= weekAgo) || [];
+        const weeklyIncome = weeklyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+        const weeklyExpense = weeklyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+        const netSavings = weeklyIncome - weeklyExpense;
 
-        // Replace variables in template
-        const variables = {
+        // Get savings goals
+        const { data: savingsGoals } = await supabase
+          .from('savings_goals')
+          .select('name, current, target')
+          .eq('user_id', profile.user_id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const topGoal = savingsGoals?.[0];
+        const savingsGoalName = topGoal?.name || 'No goal set';
+        const savingsProgress = topGoal && topGoal.target > 0 
+          ? Math.round((topGoal.current / topGoal.target) * 100) 
+          : 0;
+
+        // Get mood trend from last 7 days
+        const { data: journalEntries } = await supabase
+          .from('journal_entries')
+          .select('mood')
+          .eq('user_id', profile.user_id)
+          .gte('date', weekAgo)
+          .order('date', { ascending: false });
+
+        const avgMood = journalEntries && journalEntries.length > 0
+          ? journalEntries.reduce((acc, e) => acc + e.mood, 0) / journalEntries.length
+          : 0;
+        
+        let moodTrend = "No entries yet";
+        if (avgMood >= 4) moodTrend = "Feeling great! 🌟";
+        else if (avgMood >= 3) moodTrend = "Doing well 😊";
+        else if (avgMood >= 2) moodTrend = "Could be better 🤔";
+        else if (avgMood > 0) moodTrend = "Needs attention 💙";
+
+        const journalCount = journalEntries?.length || 0;
+
+        const displayName = profile.display_name || user.email.split('@')[0];
+        const appUrl = supabaseUrl.replace('.supabase.co', '.lovable.app').replace('https://', 'https://');
+
+        // Replace variables in template - comprehensive set
+        const variables: Record<string, string> = {
+          // Personal
           name: displayName,
-          tasks_count: String(tasks?.length || 0),
-          habits_count: String(pendingHabits.length),
-          balance: `$${balance.toFixed(2)}`,
           email: user.email,
+          greeting: getGreeting(),
+          
+          // Date/Time
+          date: getFormattedDate(),
+          day_of_week: getDayOfWeek(),
+          
+          // Tasks
+          tasks_count: String(tasksPending),
+          tasks_completed: String(tasksCompleted),
+          tasks_total: String(tasksTotal),
+          
+          // Habits
+          habits_count: String(habitsPending),
+          habits_completed: String(habitsCompleted),
+          habits_total: String(habitsTotal),
+          
+          // Finance
+          balance: `$${balance.toFixed(2)}`,
+          weekly_income: `$${weeklyIncome.toFixed(2)}`,
+          weekly_expense: `$${weeklyExpense.toFixed(2)}`,
+          net_savings: `${netSavings >= 0 ? '+' : ''}$${netSavings.toFixed(2)}`,
+          savings_goal: savingsGoalName,
+          savings_progress: `${savingsProgress}%`,
+          
+          // Journal
+          mood_trend: moodTrend,
+          journal_count: String(journalCount),
+          
+          // Links
+          app_url: appUrl,
         };
 
         const subject = replaceVariables(template.subject, variables);
@@ -205,10 +310,10 @@ const handler = async (req: Request): Promise<Response> => {
         });
 
         const result = await emailResponse.json();
-        console.log(`Daily digest sent to ${user.email}:`, result);
+        console.log(`[daily-digest] Sent to ${user.email}:`, result);
         emailsSent++;
       } catch (userError) {
-        console.error(`Error processing user ${profile.user_id}:`, userError);
+        console.error(`[daily-digest] Error processing user ${profile.user_id}:`, userError);
       }
     }
 
@@ -222,7 +327,7 @@ const handler = async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Error in daily-digest:", error);
+    console.error("[daily-digest] Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
